@@ -12,6 +12,9 @@ if (process.env.NODE_ENV === 'production' && !process.env.JARVIS_ACCESS_TOKEN?.t
 }
 
 const app = express();
+// Render forwards requests through one trusted proxy hop. Do not use `true` here:
+// trusting every forwarded address could let clients spoof their IP and evade rate limits.
+app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 3000);
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
