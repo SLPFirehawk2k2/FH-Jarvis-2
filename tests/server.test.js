@@ -156,3 +156,28 @@ test('content security policy accepts explicitly configured backend origins only
   assert.match(csp, /https:\/\/backend\.example/);
   assert.doesNotMatch(csp, /javascript:/);
 });
+
+
+test('malformed JSON receives a structured client error', async t => {
+  const port = 7017 + Math.floor(Math.random() * 300);
+  await startServer(t, port);
+  const response = await fetch('http://127.0.0.1:' + port + '/api/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{"messages":'
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /valid JSON/);
+});
+
+test('oversized request bodies are rejected with a structured 413 response', async t => {
+  const port = 7317 + Math.floor(Math.random() * 300);
+  await startServer(t, port);
+  const response = await fetch('http://127.0.0.1:' + port + '/api/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: 'x'.repeat(34000) }] })
+  });
+  assert.equal(response.status, 413);
+  assert.match((await response.json()).error, /32 KB limit/);
+});
