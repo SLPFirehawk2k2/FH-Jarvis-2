@@ -4,30 +4,7 @@ const store = {
   set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} },
   remove: k => { try { sessionStorage.removeItem(k); } catch {} }
 };
-// The access token is remembered across browser restarts only when the user opts in.
-// localStorage is convenient, but not a vault: anyone with access to this browser profile
-// or an injected same-origin script could read it. The server-side Gemini key is never stored here.
-function getSavedAccessToken() {
-  try { return localStorage.getItem('jarvis.token.remembered') ?? store.get('jarvis.token'); }
-  catch { return store.get('jarvis.token'); }
-}
-function saveAccessToken(token, remember) {
-  store.remove('jarvis.token');
-  try {
-    if (remember && token) localStorage.setItem('jarvis.token.remembered', token);
-    else localStorage.removeItem('jarvis.token.remembered');
-  } catch {
-    if (remember) setNotice('Browser storage is unavailable. The token will only last for this tab.', true);
-  }
-  if (!remember && token) store.set('jarvis.token', token);
-}
-function clearSavedAccessToken() {
-  store.remove('jarvis.token');
-  try { localStorage.removeItem('jarvis.token.remembered'); } catch {}
-}
-
 let backendUrl = store.get('jarvis.backend', location.origin).replace(/\/+$/, '');
-let accessToken = getSavedAccessToken();
 let voiceReplies = store.get('jarvis.voiceReplies', 'true') === 'true';
 let recognition = null;
 let handsFree = false;
@@ -39,8 +16,6 @@ let restartRequested = false;
 let messages = [];
 
 $('backend-url').value = backendUrl;
-$('access-token').value = accessToken;
-$('remember-token').checked = (() => { try { return !!localStorage.getItem('jarvis.token.remembered'); } catch { return false; } })();
 
 function logActivity(text) {
   const p = document.createElement('p');
@@ -55,7 +30,6 @@ function setNotice(text, error = false) {
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.body) headers['Content-Type'] = 'application/json';
-  if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
   const response = await fetch(backendUrl + path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw Error(data.error || 'Request failed (' + response.status + ')');
@@ -274,20 +248,15 @@ $('save-settings').addEventListener('click', async () => {
   const url = $('backend-url').value.trim().replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(url)) return setNotice('Enter a valid backend URL starting with http:// or https://.', true);
   backendUrl = url;
-  accessToken = $('access-token').value.trim();
   store.set('jarvis.backend', backendUrl);
-  saveAccessToken(accessToken, $('remember-token').checked);
-  setNotice($('remember-token').checked ? 'Settings saved. Access token remembered in this browser. Testing…' : 'Settings saved for this tab. Testing…');
+  setNotice('Settings saved. Testing connection…');
   await diagnostics();
 });
 $('clear-settings').addEventListener('click', () => {
   store.remove('jarvis.backend');
-  clearSavedAccessToken();
   backendUrl = location.origin;
   accessToken = '';
   $('backend-url').value = backendUrl;
-  $('access-token').value = '';
-  $('remember-token').checked = false;
   diagnostics();
 });
 $('refresh-status').addEventListener('click', diagnostics);
