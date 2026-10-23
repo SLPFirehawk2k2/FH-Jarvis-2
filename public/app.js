@@ -293,9 +293,8 @@ function startRecognition() {
 }
 $('ptt-button').addEventListener('click', () => {
   if (pushToTalkActive) {
-    pushToTalkActive = false;
+    // Let onend collect and submit any final transcript before the UI resets.
     try { recognition?.stop(); } catch {}
-    updateVoiceUi();
     return;
   }
   if (handsFree) {
