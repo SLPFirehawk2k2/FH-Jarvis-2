@@ -105,22 +105,25 @@ async function sendChat(content) {
     return;
   }
   busy = true;
+  const requestStartedAt = performance.now();
   $('chat-state').textContent = 'PROCESSING';
+  setNotice('Sending request to J.A.R.V.I.S.…');
   $('message-input').disabled = true;
   addMessage('user', text);
   messages.push({ role: 'user', content: text });
   try {
-    const d = await api('/api/chat', { method: 'POST', body: JSON.stringify({ messages: messages.slice(-20) }) });
+    const d = await api('/api/chat', { method: 'POST', body: JSON.stringify({ messages: messages.slice(-8) }) });
     if (typeof d.reply !== 'string' || !d.reply.trim()) throw Error('The assistant returned an empty response.');
     messages.push({ role: 'assistant', content: d.reply });
     addMessage('assistant', d.reply);
-    logActivity('Gemini response received');
-    setNotice('Response received. API key remains server-side.');
+    const roundTripMs = Math.round(performance.now() - requestStartedAt);
+    logActivity('AI response in ' + roundTripMs + ' ms' + (Number.isFinite(d.elapsedMs) ? ' (provider ' + d.elapsedMs + ' ms)' : ''));
+    setNotice('Response in ' + (roundTripMs / 1000).toFixed(1) + 's' + (Number.isFinite(d.elapsedMs) ? ' · AI took ' + (d.elapsedMs / 1000).toFixed(1) + 's' : '') + '.');
     speak(d.reply);
   } catch (e) {
     addMessage('assistant', 'I could not complete that request. ' + e.message);
     setNotice(e.message, true);
-    logActivity('Chat failed: ' + e.message);
+    logActivity('Chat failed after ' + Math.round(performance.now() - requestStartedAt) + ' ms: ' + e.message);
   } finally {
     busy = false;
     $('chat-state').textContent = 'STANDBY';
