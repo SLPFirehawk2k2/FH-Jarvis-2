@@ -91,6 +91,9 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     if (!item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || !item.content.trim() || item.content.length > 6000) {
       return res.status(400).json({ error: 'Each message needs a valid role and 1–6000 characters of content.' });
     }
+    if (normalized.length && normalized.at(-1).role === item.role) {
+      return res.status(400).json({ error: 'Chat messages must alternate between user and assistant.' });
+    }
     normalized.push({ role: item.role, content: item.content.trim() });
   }
   if (normalized.at(-1).role !== 'user') return res.status(400).json({ error: 'The final message must be from the user.' });
