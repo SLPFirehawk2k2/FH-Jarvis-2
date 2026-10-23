@@ -1,0 +1,21 @@
+{
+  "name": "jarvis-mark-ii",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "J.A.R.V.I.S. Mark II cloud assistant starter",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0"
+  }
+}
