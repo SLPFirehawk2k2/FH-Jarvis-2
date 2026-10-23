@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const TEST_TOKEN = 'test-jarvis-token';
 
@@ -16,6 +16,16 @@ async function startServer(t, port, extraEnv = {}) {
   }
   throw new Error('Server did not start');
 }
+
+test('production startup fails closed when access token is missing', () => {
+  const result = spawnSync(process.execPath, ['server/index.js'], {
+    env: { ...process.env, NODE_ENV: 'production', JARVIS_ACCESS_TOKEN: '', GEMINI_API_KEY: '' },
+    encoding: 'utf8',
+    timeout: 5000
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Startup blocked: set a strong JARVIS_ACCESS_TOKEN/);
+});
 
 function authHeaders(extra = {}) {
   return { authorization: 'Bearer ' + TEST_TOKEN, ...extra };
