@@ -18,6 +18,7 @@ app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 3000);
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
+const defaultGeminiModel = 'gemini-3.8-flash';
 
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -44,7 +45,7 @@ function requireAccess(req, res, next) {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/status', requireAccess, (_req, res) => res.json({
   ok: true, aiConfigured: Boolean(process.env.GEMINI_API_KEY),
-  model: process.env.GEMINI_MODEL || 'gemini-2.5-flash', voice: 'browser-dependent'
+  model: process.env.GEMINI_MODEL || defaultGeminiModel, voice: 'browser-dependent'
 }));
 
 app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
@@ -63,7 +64,7 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
   try {
     const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = client.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: process.env.GEMINI_MODEL || defaultGeminiModel,
       systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.'
     });
     const history = normalized.slice(0, -1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
