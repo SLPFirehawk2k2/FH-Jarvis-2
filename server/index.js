@@ -6,11 +6,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-if (process.env.NODE_ENV === 'production' && !process.env.JARVIS_ACCESS_TOKEN?.trim()) {
-  console.error('Startup blocked: set a strong JARVIS_ACCESS_TOKEN before exposing J.A.R.V.I.S. publicly.');
-  process.exit(1);
-}
-
 const app = express();
 // Render forwards requests through one trusted proxy hop. Do not use `true` here:
 // trusting every forwarded address could let clients spoof their IP and evade rate limits.
@@ -29,7 +24,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const chatLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false,
+const chatLimiter = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'Too many requests. Please wait a minute and try again.' } });
 
 function withTimeout(promise, ms) {
@@ -46,23 +41,14 @@ function withTimeout(promise, ms) {
   ]).finally(() => clearTimeout(timer));
 }
 
-function requireAccess(req, res, next) {
-  const expected = process.env.JARVIS_ACCESS_TOKEN;
-  if (!expected?.trim()) {
-    if (process.env.NODE_ENV === 'production') return res.status(503).json({ error: 'Server access protection is not configured.' });
-    return next();
-  }
-  if ((req.get('authorization') || '') !== `Bearer ${expected}`) return res.status(401).json({ error: 'Access token required. Set it in HUD Settings.' });
-  next();
-}
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', requireAccess, (_req, res) => res.json({
+app.get('/api/status', (_req, res) => res.json({
   ok: true, aiConfigured: Boolean(process.env.GEMINI_API_KEY),
   model: process.env.GEMINI_MODEL || defaultGeminiModel, voice: 'browser-dependent'
 }));
 
-app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
+app.post('/api/chat', chatLimiter, async (req, res) => {
   const messages = req.body?.messages;
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 20) return res.status(400).json({ error: 'messages must contain 1–20 items.' });
   const normalized = [];
@@ -152,4 +138,5 @@ app.listen(port, () => {
   console.log(`J.A.R.V.I.S. Mark II listening on port ${port}`);
   console.info('Gemini API key startup check: ' + (process.env.GEMINI_API_KEY?.trim() ? 'loaded from server environment' : 'MISSING — set GEMINI_API_KEY in Render Environment'));
   console.info('Gemini model: ' + (process.env.GEMINI_MODEL || defaultGeminiModel));
+  console.info('J.A.R.V.I.S. access-token prompt disabled; AI requests are protected by per-IP rate limiting.');
 });
