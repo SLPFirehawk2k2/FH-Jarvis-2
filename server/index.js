@@ -6,6 +6,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+if (process.env.NODE_ENV === 'production' && !process.env.JARVIS_ACCESS_TOKEN?.trim()) {
+  console.error('Startup blocked: set a strong JARVIS_ACCESS_TOKEN before exposing J.A.R.V.I.S. publicly.');
+  process.exit(1);
+}
+
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
@@ -25,7 +30,10 @@ const chatLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: 'd
 
 function requireAccess(req, res, next) {
   const expected = process.env.JARVIS_ACCESS_TOKEN;
-  if (!expected) return next();
+  if (!expected?.trim()) {
+    if (process.env.NODE_ENV === 'production') return res.status(503).json({ error: 'Server access protection is not configured.' });
+    return next();
+  }
   if ((req.get('authorization') || '') !== `Bearer ${expected}`) return res.status(401).json({ error: 'Access token required. Set it in HUD Settings.' });
   next();
 }
