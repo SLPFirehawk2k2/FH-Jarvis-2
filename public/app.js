@@ -284,10 +284,24 @@ function weatherDescription(code) {
 function isWeatherRequest(text) {
   return /\b(weather|forecast|temperature|is it raining|will it rain|rain today|snow today)\b/i.test(text);
 }
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('The weather service took too long to respond. Check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 async function geocodeWeatherLocation(name) {
   const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
   url.search = new URLSearchParams({ name, count: '1', language: 'en', format: 'json' });
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, {}, 10000);
   if (!response.ok) throw new Error('The location search service is unavailable.');
   const data = await response.json();
   if (!data.results?.length) throw new Error('I could not find that location. Try a city and state, such as Mineola, New York.');
@@ -326,7 +340,7 @@ async function fetchWeather(locationQuery = '') {
     timezone: 'auto',
     forecast_days: '1'
   });
-  const response = await fetch('https://api.open-meteo.com/v1/forecast?' + params.toString());
+  const response = await fetchWithTimeout('https://api.open-meteo.com/v1/forecast?' + params.toString(), {}, 12000);
   if (!response.ok) throw new Error('The weather service did not respond successfully. Try again shortly.');
   const data = await response.json();
   if (!data.current || !data.daily) throw new Error('The weather service returned incomplete data.');
