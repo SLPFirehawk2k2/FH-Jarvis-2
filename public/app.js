@@ -300,10 +300,15 @@ $('ptt-button').addEventListener('click', () => {
   if (handsFree) {
     handsFree = false;
     wakeWordArmed = false;
+    if (recognition) recognition.continuous = false;
     try { recognition?.stop(); } catch {}
+    updateVoiceUi();
+    setNotice('Hands-free stopped. Press Push to Talk again to start a separate voice session.');
+    return;
   }
   if (!recognition) recognition = makeRecognition();
   if (!recognition) return setNotice('Speech recognition is unsupported. Use a current version of Chrome or Edge.', true);
+  recognition.continuous = false;
   pushToTalkActive = true;
   updateVoiceUi();
   startRecognition();
@@ -313,14 +318,16 @@ $('handsfree-button').addEventListener('click', () => {
     handsFree = false;
     wakeWordArmed = false;
     restartRequested = false;
+    if (recognition) recognition.continuous = false;
     try { recognition?.stop(); } catch {}
     updateVoiceUi();
     setNotice('Hands-free stopped.');
     return;
   }
   if (pushToTalkActive) {
-    pushToTalkActive = false;
     try { recognition?.stop(); } catch {}
+    setNotice('Finishing the push-to-talk recording. Enable hands-free again in a moment.');
+    return;
   }
   if (!recognition) recognition = makeRecognition();
   if (!recognition) return setNotice('Speech recognition is unsupported in this browser. Try current Chrome or Edge.', true);
