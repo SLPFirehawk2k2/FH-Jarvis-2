@@ -86,9 +86,30 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
         const status = Number(error?.status || error?.response?.status || match?.[1] || 0);
         const transient = [429, 500, 502, 503, 504].includes(status) ||
           /high demand|temporarily unavailable|overloaded|rate limit/i.test(message);
-        if (!transient || attempt === 1) throw error;
-        console.warn('Gemini temporary provider error (' + (status || 'unknown') + '); retrying once after 1200ms.');
-        await new Promise(resolve => setTimeout(resolve, 1200));
+        if (!transient) throw error;
+        if (attempt === 0) {
+          console.warn('Gemini temporary provider error (' + (status || 'unknown') + '); retrying once after 1200ms.');
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          continue;
+        }
+
+        // If the default Gemini 3.8 Flash model remains overloaded after a retry,
+        // try the stable Gemini 3.6 Flash model once as a best-effort fallback.
+        // Respect explicitly configured non-3.8 models; do not silently replace them.
+        const configuredModel = process.env.GEMINI_MODEL || defaultGeminiModel;
+        if (configuredModel === 'gemini-3.8-flash') {
+          console.warn('Gemini 3.8 Flash is still unavailable; trying fallback model gemini-3.6-flash once.');
+          const fallbackModel = client.getGenerativeModel({
+            model: 'gemini-3.6-flash',
+            systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
+            generationConfig: { maxOutputTokens: 256 }
+          });
+          const fallbackChat = fallbackModel.startChat({ history });
+          result = await fallbackChat.sendMessage(normalized.at(-1).content);
+          console.info('Gemini fallback model gemini-3.6-flash completed request in ' + (Date.now() - requestStartedAt) + 'ms');
+          break;
+        }
+        throw error;
       }
     }
     if (!result) throw lastError || new Error('Gemini returned no result.');
