@@ -286,7 +286,7 @@ async function sendChat(content) {
     addMessage('user', text);
     messages.push({ role: 'user', content: text });
     try {
-      const locationMatch = text.match(/\\b(?:weather|forecast|temperature)\\s+(?:in|for)\\s+([^?!.]+)(?:[?!.]|$)/i);
+      const locationMatch = text.match(/\b(?:weather|forecast|temperature)\s+(?:in|for)\s+([^?!.]+)(?:[?!.]|$)/i);
       const locationQuery = locationMatch?.[1]?.trim() || '';
       const weatherReply = await fetchWeather(locationQuery);
       messages.push({ role: 'assistant', content: weatherReply });
