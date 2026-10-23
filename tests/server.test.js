@@ -153,6 +153,6 @@ test('content security policy accepts explicitly configured backend origins only
   await startServer(t, port, { CONNECT_SRC_ORIGINS: 'https://backend.example,not-a-url,javascript:alert(1)' });
   const response = await fetch('http://127.0.0.1:' + port + '/health');
   const csp = response.headers.get('content-security-policy');
-  assert.match(csp, /https:\\/\\/backend\\.example/);
+  assert.match(csp, /https:\/\/backend\.example/);
   assert.doesNotMatch(csp, /javascript:/);
 });
