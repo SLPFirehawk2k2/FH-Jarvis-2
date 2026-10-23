@@ -15,15 +15,15 @@ A clean cloud-ready browser assistant starter: cyan holographic HUD, typed chat,
 ## Environment
 - `GEMINI_API_KEY`: required for AI chat; server-side only.
 - `GEMINI_MODEL`: defaults to `gemini-2.5-flash`.
-- `JARVIS_ACCESS_TOKEN`: optional bearer-token gate; strongly recommended for private hosting.
+- `JARVIS_ACCESS_TOKEN`: bearer-token gate for API routes. Required at startup when `NODE_ENV=production`; use a long, random secret.
 - `ALLOWED_ORIGINS`: optional comma-separated origin allowlist.
 - `PORT`: defaults to 3000.
 
 ## Deploy
-Use the included `render.yaml` as a Render Blueprint or create a Node web service with `npm install` / `npm start`. Configure Gemini and access-token values as secret environment variables. The repository includes a GitHub Actions test workflow.
+Use the included `render.yaml` as a Render Blueprint or create a Node web service with `npm install` / `npm start`. Configure Gemini and access-token values as secret environment variables. Production startup intentionally fails if `JARVIS_ACCESS_TOKEN` is missing. The repository includes a GitHub Actions test workflow.
 
 ## Voice
 Speech recognition depends on browser/OS support and microphone permission; current Chrome/Edge are recommended. Push-to-talk is user-initiated. Hands-free mode uses browser speech recognition to detect “Jarvis” and is not a guaranteed always-on wake-word engine; browser suspension may stop it. Speech output uses browser voices.
 
 ## Security and scope
-Never put the Gemini key in frontend code. Use HTTPS in cloud deployments and set a strong access token. A shared bearer token is a lightweight gate, not full multi-user authentication. This starter does not run shell commands or control Windows/OBS. Add those later as explicit, authenticated integrations.
+Never put the Gemini key in frontend code. Use HTTPS in cloud deployments and set a strong access token; production refuses to start without one. A shared bearer token is a lightweight gate, not full multi-user authentication. This starter does not run shell commands or control Windows/OBS. Add those later as explicit, authenticated integrations.
