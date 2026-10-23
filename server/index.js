@@ -61,18 +61,22 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
   if (normalized.at(-1).role !== 'user') return res.status(400).json({ error: 'The final message must be from the user.' });
   if (!process.env.GEMINI_API_KEY) return res.status(503).json({ error: 'Gemini is not configured. Add GEMINI_API_KEY to the server environment.' });
 
+  const requestStartedAt = Date.now();
   try {
     const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = client.getGenerativeModel({
       model: process.env.GEMINI_MODEL || defaultGeminiModel,
-      systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.'
+      systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
+      generationConfig: { maxOutputTokens: 256 }
     });
     const history = normalized.slice(0, -1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(normalized.at(-1).content);
-    return res.json({ reply: result.response.text() });
+    const reply = result.response.text();
+    console.info('Gemini request completed in ' + (Date.now() - requestStartedAt) + 'ms');
+    return res.json({ reply, elapsedMs: Date.now() - requestStartedAt });
   } catch (error) {
-    console.error('Gemini request failed:', error?.message || 'unknown error');
+    console.error('Gemini request failed after ' + (Date.now() - requestStartedAt) + 'ms:', error?.message || 'unknown error');
     return res.status(502).json({ error: 'Gemini request failed. Check server configuration and provider status.' });
   }
 });
