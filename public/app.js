@@ -562,3 +562,7 @@ window.setInterval(tick, 1000);
 localTaskTick();
 window.setInterval(localTaskTick, 1000);
 diagnostics();
+// Automatically request browser location and load local weather on dashboard startup.
+// If permission is denied or unavailable, the Weather panel explains the manual-city fallback.
+$('weather-status').textContent = 'LOCATING…';
+refreshWeather();
