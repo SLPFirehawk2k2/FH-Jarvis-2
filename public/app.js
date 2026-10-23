@@ -173,13 +173,24 @@ function renderLocalTasks() {
       const remaining = document.createElement('small');
       remaining.textContent = task.endAt <= now ? 'DUE — alerting now' : formatDuration(task.endAt - now) + ' remaining';
       details.append(title, remaining);
+      const actions = document.createElement('div');
+      actions.className = 'task-actions';
+      const snooze = document.createElement('button');
+      snooze.type = 'button';
+      snooze.className = 'task-snooze';
+      snooze.dataset.taskAction = 'snooze';
+      snooze.dataset.taskId = task.id;
+      snooze.textContent = 'SNOOZE 5M';
+      snooze.setAttribute('aria-label', 'Snooze ' + task.kind + ': ' + task.label + ' for five minutes');
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'task-cancel';
+      cancel.dataset.taskAction = 'cancel';
       cancel.dataset.taskId = task.id;
       cancel.textContent = 'CANCEL';
       cancel.setAttribute('aria-label', 'Cancel ' + task.kind + ': ' + task.label);
-      item.append(details, cancel);
+      actions.append(snooze, cancel);
+      item.append(details, actions);
       list.append(item);
     }
   }
@@ -210,10 +221,20 @@ function localTaskTick() {
 }
 $('task-notifications')?.addEventListener('click', requestTaskNotifications);
 $('task-list')?.addEventListener('click', event => {
-  const button = event.target.closest('button[data-task-id]');
+  const button = event.target.closest('button[data-task-id][data-task-action]');
   if (!button) return;
   const task = localTasks.find(item => item.id === button.dataset.taskId);
   if (!task) return;
+  if (button.dataset.taskAction === 'snooze') {
+    task.endAt = Date.now() + 5 * 60 * 1000;
+    saveLocalTasks();
+    renderLocalTasks();
+    const message = 'Snoozed ' + task.kind + ': ' + task.label + ' for five minutes.';
+    setNotice(message);
+    logActivity(message);
+    return;
+  }
+  if (button.dataset.taskAction !== 'cancel') return;
   localTasks = localTasks.filter(item => item.id !== task.id);
   saveLocalTasks();
   renderLocalTasks();
