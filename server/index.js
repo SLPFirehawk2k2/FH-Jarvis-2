@@ -81,7 +81,7 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
     const model = client.getGenerativeModel({
       model: process.env.GEMINI_MODEL || defaultGeminiModel,
       systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
-      generationConfig: { maxOutputTokens: 256 }
+      generationConfig: { maxOutputTokens: 768 }
     });
     const history = normalized.slice(0, -1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
     const chat = model.startChat({ history });
@@ -117,7 +117,7 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
           const fallbackModel = client.getGenerativeModel({
             model: 'gemini-3.6-flash',
             systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
-            generationConfig: { maxOutputTokens: 256 }
+            generationConfig: { maxOutputTokens: 768 }
           });
           const fallbackChat = fallbackModel.startChat({ history });
           result = await withTimeout(fallbackChat.sendMessage(normalized.at(-1).content), 12000);
