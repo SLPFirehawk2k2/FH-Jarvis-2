@@ -100,8 +100,8 @@ function speak(text) {
 }
 function localTimeIntent(text) {
   const q = text.toLowerCase().replace(/[’']/g, '').trim();
-  const asksTime = /\\b(what time is it|current time|tell me the time|time right now|local time)\\b/.test(q);
-  const asksDate = /\\b(what(?:s| is) todays date|current date|what day is it|todays date|date today)\\b/.test(q);
+  const asksTime = /\b(what time is it|current time|tell me the time|time right now|local time)\b/.test(q);
+  const asksDate = /\b(what(?:s| is) todays date|current date|what day is it|todays date|date today)\b/.test(q);
   if (!asksTime && !asksDate) return null;
   const now = new Date();
   const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
