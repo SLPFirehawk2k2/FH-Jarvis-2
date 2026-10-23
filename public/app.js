@@ -95,12 +95,28 @@ function speak(text) {
   speechSynthesis.speak(utterance);
 }
 const LOCAL_TASKS_KEY = 'jarvis.localTasks';
+const taskStore = {
+  get(key, fallback = null) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, value); return true; } catch { return false; } },
+  remove(key) { try { localStorage.removeItem(key); } catch {} }
+};
 let localTasks = [];
-try { localTasks = JSON.parse(store.get(LOCAL_TASKS_KEY, '[]')); } catch { localTasks = []; }
-if (!Array.isArray(localTasks)) localTasks = [];
+try {
+  const saved = taskStore.get(LOCAL_TASKS_KEY);
+  // One-time migration from the earlier tab-session-only task store.
+  const legacy = saved === null ? store.get(LOCAL_TASKS_KEY, '[]') : '[]';
+  const parsed = JSON.parse(saved === null ? legacy : saved);
+  if (Array.isArray(parsed)) localTasks = parsed.filter(task =>
+    task && typeof task.id === 'string' && ['timer', 'reminder'].includes(task.kind) &&
+    typeof task.label === 'string' && Number.isFinite(task.endAt)
+  ).slice(0, 50);
+  if (saved === null && localTasks.length) taskStore.set(LOCAL_TASKS_KEY, JSON.stringify(localTasks));
+} catch { localTasks = []; }
 
 function saveLocalTasks() {
-  store.set(LOCAL_TASKS_KEY, JSON.stringify(localTasks));
+  if (!taskStore.set(LOCAL_TASKS_KEY, JSON.stringify(localTasks))) {
+    setNotice('Could not save timers in this browser. Check storage settings.', true);
+  }
 }
 function formatDuration(ms) {
   const seconds = Math.max(0, Math.ceil(ms / 1000));
@@ -109,13 +125,76 @@ function formatDuration(ms) {
   const s = seconds % 60;
   return [h ? h + 'h' : '', m ? m + 'm' : '', s || (!h && !m) ? s + 's' : ''].filter(Boolean).join(' ');
 }
+function requestTaskNotifications() {
+  if (!('Notification' in window)) {
+    setNotice('This browser does not support desktop notifications. Keep J.A.R.V.I.S. open for on-screen and voice alerts.', true);
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    setNotice('Desktop notifications are already enabled.');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    setNotice('Notifications are blocked by the browser. Allow them in this site’s settings.', true);
+    return;
+  }
+  Notification.requestPermission().then(permission => {
+    setNotice(permission === 'granted'
+      ? 'Desktop notifications enabled.'
+      : 'Notification permission was not granted. On-screen and voice alerts still work while this page is open.',
+      permission !== 'granted');
+    renderLocalTasks();
+  }).catch(() => setNotice('Could not request notification permission in this browser.', true));
+}
+function renderLocalTasks() {
+  const list = $('task-list');
+  const notificationButton = $('task-notifications');
+  const now = Date.now();
+  if (notificationButton && 'Notification' in window) {
+    notificationButton.textContent = Notification.permission === 'granted' ? 'NOTIFICATIONS ON' : 'ENABLE NOTIFICATIONS';
+    notificationButton.disabled = Notification.permission === 'granted';
+  }
+  if (list) {
+    list.replaceChildren();
+    const sorted = [...localTasks].sort((a, b) => a.endAt - b.endAt);
+    if (!sorted.length) {
+      const empty = document.createElement('p');
+      empty.className = 'task-empty';
+      empty.textContent = 'No active timers. Try “set a timer for 5 minutes” or “remind me in 10 minutes to check the laundry”.';
+      list.append(empty);
+    }
+    for (const task of sorted) {
+      const item = document.createElement('div');
+      item.className = 'task-item';
+      const details = document.createElement('div');
+      details.className = 'task-details';
+      const title = document.createElement('strong');
+      title.textContent = (task.kind === 'reminder' ? 'REMINDER' : 'TIMER') + ' · ' + task.label;
+      const remaining = document.createElement('small');
+      remaining.textContent = task.endAt <= now ? 'DUE — alerting now' : formatDuration(task.endAt - now) + ' remaining';
+      details.append(title, remaining);
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'task-cancel';
+      cancel.dataset.taskId = task.id;
+      cancel.textContent = 'CANCEL';
+      cancel.setAttribute('aria-label', 'Cancel ' + task.kind + ': ' + task.label);
+      item.append(details, cancel);
+      list.append(item);
+    }
+  }
+  const timerLabel = $('timer-status');
+  if (timerLabel) timerLabel.textContent = localTasks.length
+    ? localTasks.length + ' active local task' + (localTasks.length === 1 ? '' : 's')
+    : 'No active timers';
+}
 function notifyTask(task) {
   const message = (task.kind === 'reminder' ? 'Reminder: ' : 'Timer finished: ') + task.label;
   logActivity(message);
   setNotice(message);
   speak(message);
   if ('Notification' in window && Notification.permission === 'granted') {
-    try { new Notification('J.A.R.V.I.S. Mark II', { body: message }); } catch {}
+    try { new Notification('J.A.R.V.I.S. Mark II', { body: message, tag: 'jarvis-task-' + task.id }); } catch {}
   }
 }
 function localTaskTick() {
@@ -127,10 +206,21 @@ function localTaskTick() {
     saveLocalTasks();
     due.forEach(notifyTask);
   }
-  const timers = localTasks.length;
-  const timerLabel = $('timer-status');
-  if (timerLabel) timerLabel.textContent = timers ? timers + ' active local task' + (timers === 1 ? '' : 's') : 'Browser-local timers';
+  renderLocalTasks();
 }
+$('task-notifications')?.addEventListener('click', requestTaskNotifications);
+$('task-list')?.addEventListener('click', event => {
+  const button = event.target.closest('button[data-task-id]');
+  if (!button) return;
+  const task = localTasks.find(item => item.id === button.dataset.taskId);
+  if (!task) return;
+  localTasks = localTasks.filter(item => item.id !== task.id);
+  saveLocalTasks();
+  renderLocalTasks();
+  const message = 'Cancelled ' + task.kind + ': ' + task.label + '.';
+  setNotice(message);
+  logActivity(message);
+});
 
 const weatherDescriptions = {
   0: 'Clear sky', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
@@ -266,10 +356,12 @@ function localTaskIntent(text) {
     const isReminder = !!reminderMatch;
     const label = isReminder ? ((match[3] || '').trim() || 'your reminder') : 'your timer';
     const task = { id: String(Date.now()) + Math.random().toString(36).slice(2, 7), kind: isReminder ? 'reminder' : 'timer', label, endAt: Date.now() + durationMs };
+    if (localTasks.length >= 50) return 'You have reached the limit of 50 active timers and reminders. Cancel one before adding another.';
     localTasks.push(task);
     saveLocalTasks();
+    renderLocalTasks();
     return (isReminder ? 'Reminder set' : 'Timer started') + ' for ' + formatDuration(durationMs) +
-      (isReminder && match[3] ? ': ' + label : '.') + ' I’ll notify you while this page remains open.';
+      (isReminder && match[3] ? ': ' + label : '.') + ' I’ll alert you while this page is open; saved tasks remain listed if you return later.';
   }
   return null;
 }
