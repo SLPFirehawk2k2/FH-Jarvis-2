@@ -22,7 +22,8 @@ No J.A.R.V.I.S. access-token prompt is required.
 
 - `GEMINI_API_KEY`: required for AI chat; server-side only.
 - `GEMINI_MODEL`: defaults to `gemini-3.8-flash`. If that model is unavailable, overloaded, rate-limited, or times out, the server can fall back to `gemini-3.6-flash` within a bounded response budget.
-- `ALLOWED_ORIGINS`: optional comma-separated browser-origin allowlist. Set this to your deployed origin in production. This is an origin check, not authentication.
+- `ALLOWED_ORIGINS`: optional comma-separated browser-origin allowlist. Set this to the frontend origin(s) allowed to call this server. Allowed origins receive the CORS headers needed for cross-origin use; this is not authentication.
+- `CONNECT_SRC_ORIGINS`: optional comma-separated list of trusted backend origins that the dashboard browser may connect to. Configure this on the frontend/dashboard service when using a different backend URL. Use exact `https://host` origins, not paths or wildcards. The backend service must also list the frontend origin in its own `ALLOWED_ORIGINS`.
 - `PORT`: port for the local/server process; defaults to `3000` (Render provides its own value).
 
 ## Render deployment
@@ -30,6 +31,10 @@ No J.A.R.V.I.S. access-token prompt is required.
 The live Mark II service is configured in Render to deploy the `main` branch of this repository automatically. It uses `npm install`, `npm start`, and the `/health` health check. Configure `GEMINI_API_KEY` as a secret environment variable in Render. Do not add an access-token variable unless the application is intentionally redesigned to use one.
 
 The `render.yaml` file describes the service and its non-secret settings. Review the Blueprint before applying it to an existing service.
+
+### Using a separate backend
+
+For the dashboard's **Backend URL** setting to work cross-origin, add the backend's exact origin to `CONNECT_SRC_ORIGINS` on the dashboard service, and add the dashboard's exact origin to `ALLOWED_ORIGINS` on the backend service. Both sides must be configured; this avoids broad CSP or CORS wildcards. Same-origin deployment needs no extra configuration.
 
 ## Weather
 
