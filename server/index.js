@@ -16,7 +16,21 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(v => v
 const defaultGeminiModel = 'gemini-3.8-flash';
 
 app.disable('x-powered-by');
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"]
+    }
+  }
+}));
 app.use(express.json({ limit: '32kb' }));
 app.use((req, res, next) => {
   const origin = req.get('origin');
