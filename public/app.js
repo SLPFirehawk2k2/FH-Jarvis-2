@@ -98,10 +98,39 @@ function speak(text) {
   };
   speechSynthesis.speak(utterance);
 }
+function localTimeIntent(text) {
+  const q = text.toLowerCase().replace(/[’']/g, '').trim();
+  const asksTime = /\\b(what time is it|current time|tell me the time|time right now|local time)\\b/.test(q);
+  const asksDate = /\\b(what(?:s| is) todays date|current date|what day is it|todays date|date today)\\b/.test(q);
+  if (!asksTime && !asksDate) return null;
+  const now = new Date();
+  const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  const date = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  if (asksTime && asksDate) return 'It is ' + time + ' on ' + date + '.';
+  if (asksDate) return 'Today is ' + date + '.';
+  return 'The current time on this device is ' + time + '.';
+}
 async function sendChat(content) {
   const text = String(content || '').trim();
   if (!text || busy) {
     if (busy && text) setNotice('I’m still processing the previous request. Please try again in a moment.');
+    return;
+  }
+  const localReply = localTimeIntent(text);
+  if (localReply) {
+    busy = true;
+    $('chat-state').textContent = 'LOCAL';
+    addMessage('user', text);
+    messages.push({ role: 'user', content: text });
+    messages.push({ role: 'assistant', content: localReply });
+    addMessage('assistant', localReply);
+    setNotice('Answered locally using your device clock. No Gemini request needed.');
+    logActivity('Local clock intent handled by browser.');
+    speak(localReply);
+    busy = false;
+    $('chat-state').textContent = 'STANDBY';
+    $('message-input').disabled = false;
+    if (!pushToTalkActive) $('message-input').focus();
     return;
   }
   busy = true;
