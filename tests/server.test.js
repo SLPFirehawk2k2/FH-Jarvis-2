@@ -39,6 +39,10 @@ test('health endpoint responds with ok true', async t => {
   await startServer(t, port);
   const response = await fetch('http://127.0.0.1:' + port + '/health');
   assert.equal(response.status, 200);
+  const csp = response.headers.get('content-security-policy');
+  assert.match(csp, /script-src 'self'/);
+  assert.match(csp, /object-src 'none'/);
+  assert.match(csp, /connect-src[^;]*https:\/\/api\.open-meteo\.com/);
   assert.deepEqual(await response.json(), { ok: true });
 });
 
