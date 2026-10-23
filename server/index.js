@@ -199,6 +199,17 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
   }
 });
 
+app.use((error, _req, res, next) => {
+  if (res.headersSent) return next(error);
+  if (error?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body exceeds the 32 KB limit.' });
+  }
+  if (error instanceof SyntaxError && error.status === 400 && Object.hasOwn(error, 'body')) {
+    return res.status(400).json({ error: 'Request body must be valid JSON.' });
+  }
+  return next(error);
+});
+
 app.use(express.static(publicDir, { extensions: ['html'] }));
 app.get('*path', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
 app.listen(port, () => {
