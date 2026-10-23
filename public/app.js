@@ -4,9 +4,30 @@ const store = {
   set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} },
   remove: k => { try { sessionStorage.removeItem(k); } catch {} }
 };
+// The access token is remembered across browser restarts only when the user opts in.
+// localStorage is convenient, but not a vault: anyone with access to this browser profile
+// or an injected same-origin script could read it. The server-side Gemini key is never stored here.
+function getSavedAccessToken() {
+  try { return localStorage.getItem('jarvis.token.remembered') ?? store.get('jarvis.token'); }
+  catch { return store.get('jarvis.token'); }
+}
+function saveAccessToken(token, remember) {
+  store.remove('jarvis.token');
+  try {
+    if (remember && token) localStorage.setItem('jarvis.token.remembered', token);
+    else localStorage.removeItem('jarvis.token.remembered');
+  } catch {
+    if (remember) setNotice('Browser storage is unavailable. The token will only last for this tab.', true);
+  }
+  if (!remember && token) store.set('jarvis.token', token);
+}
+function clearSavedAccessToken() {
+  store.remove('jarvis.token');
+  try { localStorage.removeItem('jarvis.token.remembered'); } catch {}
+}
 
 let backendUrl = store.get('jarvis.backend', location.origin).replace(/\/+$/, '');
-let accessToken = store.get('jarvis.token');
+let accessToken = getSavedAccessToken();
 let voiceReplies = store.get('jarvis.voiceReplies', 'true') === 'true';
 let recognition = null;
 let handsFree = false;
@@ -19,6 +40,7 @@ let messages = [];
 
 $('backend-url').value = backendUrl;
 $('access-token').value = accessToken;
+$('remember-token').checked = (() => { try { return !!localStorage.getItem('jarvis.token.remembered'); } catch { return false; } })();
 
 function logActivity(text) {
   const p = document.createElement('p');
@@ -254,17 +276,18 @@ $('save-settings').addEventListener('click', async () => {
   backendUrl = url;
   accessToken = $('access-token').value.trim();
   store.set('jarvis.backend', backendUrl);
-  store.set('jarvis.token', accessToken);
-  setNotice('Settings saved for this tab. Testing…');
+  saveAccessToken(accessToken, $('remember-token').checked);
+  setNotice($('remember-token').checked ? 'Settings saved. Access token remembered in this browser. Testing…' : 'Settings saved for this tab. Testing…');
   await diagnostics();
 });
 $('clear-settings').addEventListener('click', () => {
   store.remove('jarvis.backend');
-  store.remove('jarvis.token');
+  clearSavedAccessToken();
   backendUrl = location.origin;
   accessToken = '';
   $('backend-url').value = backendUrl;
   $('access-token').value = '';
+  $('remember-token').checked = false;
   diagnostics();
 });
 $('refresh-status').addEventListener('click', diagnostics);
