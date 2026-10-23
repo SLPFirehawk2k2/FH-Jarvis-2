@@ -18,13 +18,6 @@ A browser-based J.A.R.V.I.S. assistant with a cyan HUD, text chat, browser speec
 
 No J.A.R.V.I.S. access-token prompt is required.
 
-## Hybrid ChatGPT access
-
-The dashboard includes **Open Official ChatGPT**, which opens https://chatgpt.com/ in a separate tab. This is the recommended way to use the actual ChatGPT website, account, chat history, model picker, and features supported by your account. Sign-in and subscription management remain with OpenAI.
-
-This is a link to the official website, not an embedded or cloned ChatGPT interface. J.A.R.V.I.S. does not read ChatGPT cookies, passwords, private browser sessions, or private website endpoints. ChatGPT sign-in/subscription and OpenAI API access are separate products with separate billing. The existing Gemini-backed J.A.R.V.I.S. chat remains available in the dashboard.
-
-A future in-dashboard OpenAI API mode would be a separate feature and would require an OpenAI API key configured server-side. It would be API-based rather than the ChatGPT website itself, and would have its own API usage costs, rate limits, and model capabilities.
 
 ## Environment variables
 
@@ -60,6 +53,5 @@ Timers and reminders are stored in this browser's local storage and run in the p
 
 - Never expose the Gemini API key in frontend code.
 - The API uses per-IP rate limiting and can restrict browser origins with `ALLOWED_ORIGINS`; neither is a replacement for authentication. The current public service does not require a shared access token.
-- The official ChatGPT link opens a new tab with `noopener noreferrer`; J.A.R.V.I.S. does not attempt to access ChatGPT's private session or credentials.
 - The cloud app does not run shell commands or directly control Windows or OBS. Those capabilities require a separately designed local companion and explicit security controls.
 - The legacy `FH-Jarvis-1.0` repository and `fh-jarvis-cloud-ai` Render service are separate and are not modified by Mark II changes.
