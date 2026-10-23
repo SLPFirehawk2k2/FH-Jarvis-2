@@ -112,4 +112,8 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
 
 app.use(express.static(publicDir, { extensions: ['html'] }));
 app.get('*path', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
-app.listen(port, () => console.log(`J.A.R.V.I.S. Mark II listening on port ${port}`));
+app.listen(port, () => {
+  console.log(`J.A.R.V.I.S. Mark II listening on port ${port}`);
+  console.info('Gemini API key startup check: ' + (process.env.GEMINI_API_KEY?.trim() ? 'loaded from server environment' : 'MISSING — set GEMINI_API_KEY in Render Environment'));
+  console.info('Gemini model: ' + (process.env.GEMINI_MODEL || defaultGeminiModel));
+});
