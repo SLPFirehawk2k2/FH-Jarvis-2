@@ -118,3 +118,41 @@ test('chat requires the final message to be from the user', async t => {
   assert.match((await response.json()).error, /final message must be from the user/);
 });
 
+
+
+test('allowed browser origins receive CORS headers', async t => {
+  const port = 6117 + Math.floor(Math.random() * 300);
+  await startServer(t, port, { ALLOWED_ORIGINS: 'https://dashboard.example' });
+  const response = await fetch('http://127.0.0.1:' + port + '/api/status', {
+    headers: { origin: 'https://dashboard.example' }
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'https://dashboard.example');
+  assert.match(response.headers.get('vary') || '', /Origin/i);
+});
+
+test('allowed cross-origin preflight requests are answered safely', async t => {
+  const port = 6417 + Math.floor(Math.random() * 300);
+  await startServer(t, port, { ALLOWED_ORIGINS: 'https://dashboard.example' });
+  const response = await fetch('http://127.0.0.1:' + port + '/api/chat', {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://dashboard.example',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type'
+    }
+  });
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'https://dashboard.example');
+  assert.match(response.headers.get('access-control-allow-methods') || '', /POST/);
+  assert.match(response.headers.get('access-control-allow-headers') || '', /Content-Type/i);
+});
+
+test('content security policy accepts explicitly configured backend origins only', async t => {
+  const port = 6717 + Math.floor(Math.random() * 300);
+  await startServer(t, port, { CONNECT_SRC_ORIGINS: 'https://backend.example,not-a-url,javascript:alert(1)' });
+  const response = await fetch('http://127.0.0.1:' + port + '/health');
+  const csp = response.headers.get('content-security-policy');
+  assert.match(csp, /https:\\/\\/backend\\.example/);
+  assert.doesNotMatch(csp, /javascript:/);
+});
