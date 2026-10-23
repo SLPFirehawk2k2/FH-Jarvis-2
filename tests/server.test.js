@@ -181,3 +181,19 @@ test('oversized request bodies are rejected with a structured 413 response', asy
   assert.equal(response.status, 413);
   assert.match((await response.json()).error, /32 KB limit/);
 });
+
+
+test('chat history rejects consecutive messages from the same role', async t => {
+  const port = 7617 + Math.floor(Math.random() * 300);
+  await startServer(t, port);
+  const response = await fetch('http://127.0.0.1:' + port + '/api/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ messages: [
+      { role: 'user', content: 'First message' },
+      { role: 'user', content: 'Second message' }
+    ] })
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /alternate/);
+});
