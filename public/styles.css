@@ -13,8 +13,13 @@
 .task-details{display:grid;gap:5px;min-width:0}
 .task-details strong{font-size:10px;line-height:1.5;color:#d7f6ff;overflow-wrap:anywhere}
 .task-details small{font-size:10px;color:var(--cyan)}
-.task-cancel{flex-shrink:0;padding:7px 8px;border:1px solid #ff526655;background:transparent;color:#ff8490;font-size:9px;letter-spacing:.05em;cursor:pointer}
+.task-actions{display:flex;flex-shrink:0;gap:5px;align-items:center}
+.task-snooze,.task-cancel{padding:7px 8px;background:transparent;font-size:9px;letter-spacing:.05em;cursor:pointer}
+.task-snooze{border:1px solid #50eaff55;color:var(--cyan)}
+.task-snooze:hover{background:#50eaff12;border-color:var(--cyan)}
+.task-cancel{border:1px solid #ff526655;color:#ff8490}
 .task-cancel:hover{background:#ff52661a;border-color:#ff5266}
+@media(max-width:520px){.task-item{align-items:flex-start;flex-direction:column}.task-actions{align-self:flex-end}}
 #task-notifications{margin-top:4px}
 #task-notifications:disabled{opacity:.65;cursor:default}
 .task-panel .fine-print{margin-top:10px}
