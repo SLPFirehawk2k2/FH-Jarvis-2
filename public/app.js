@@ -317,7 +317,9 @@ function getBrowserCoordinates() {
     );
   });
 }
+let weatherRequestId = 0;
 async function fetchWeather(locationQuery = '') {
+  const requestId = ++weatherRequestId;
   let place;
   if (locationQuery.trim()) {
     place = await geocodeWeatherLocation(locationQuery.trim());
@@ -352,6 +354,7 @@ async function fetchWeather(locationQuery = '') {
     'Today: high ' + Math.round(daily.temperature_2m_max[0]) + '°F, low ' + Math.round(daily.temperature_2m_min[0]) + '°F' +
     (daily.precipitation_probability_max?.[0] != null ? ', precipitation chance up to ' + daily.precipitation_probability_max[0] + '%' : '') +
     '. Wind ' + Math.round(current.wind_speed_10m) + ' mph; humidity ' + Math.round(current.relative_humidity_2m) + '%.';
+  if (requestId !== weatherRequestId) return null;
   const output = $('weather-output');
   if (output) output.textContent = result;
   const status = $('weather-status');
@@ -366,6 +369,7 @@ async function refreshWeather() {
   if (output) output.textContent = 'Fetching local weather…';
   try {
     const result = await fetchWeather($('weather-location')?.value.trim() || '');
+    if (result === null) return; // A newer weather request has taken over.
     setNotice('Weather updated.');
     if (output) output.textContent = result;
   } catch (error) {
