@@ -32,6 +32,20 @@ app.use((req, res, next) => {
 const chatLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'Too many requests. Please wait a minute and try again.' } });
 
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error('Gemini request timed out after ' + ms + 'ms');
+        error.status = 504;
+        reject(error);
+      }, ms);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
 function requireAccess(req, res, next) {
   const expected = process.env.JARVIS_ACCESS_TOKEN;
   if (!expected?.trim()) {
@@ -77,7 +91,7 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
     // Retry only transient provider errors once; never retry authentication or input errors.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        result = await chat.sendMessage(normalized.at(-1).content);
+        result = await withTimeout(chat.sendMessage(normalized.at(-1).content), 12000);
         break;
       } catch (error) {
         lastError = error;
@@ -87,25 +101,26 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
         const transient = [429, 500, 502, 503, 504].includes(status) ||
           /high demand|temporarily unavailable|overloaded|rate limit/i.test(message);
         if (!transient) throw error;
-        if (attempt === 0) {
+        const timedOut = /timed out/i.test(message);
+        if (attempt === 0 && !timedOut) {
           console.warn('Gemini temporary provider error (' + (status || 'unknown') + '); retrying once after 1200ms.');
           await new Promise(resolve => setTimeout(resolve, 1200));
           continue;
         }
 
-        // If the default Gemini 3.8 Flash model remains overloaded after a retry,
-        // try the stable Gemini 3.6 Flash model once as a best-effort fallback.
-        // Respect explicitly configured non-3.8 models; do not silently replace them.
+        // If Gemini 3.8 Flash is still overloaded or takes too long, try a
+        // backup model. Bound each provider call so the UI is not left waiting
+        // for minutes on a slow provider response.
         const configuredModel = process.env.GEMINI_MODEL || defaultGeminiModel;
         if (configuredModel === 'gemini-3.8-flash') {
-          console.warn('Gemini 3.8 Flash is still unavailable; trying fallback model gemini-3.6-flash once.');
+          console.warn('Gemini 3.8 Flash unavailable/slow; trying fallback model gemini-3.6-flash.');
           const fallbackModel = client.getGenerativeModel({
             model: 'gemini-3.6-flash',
             systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
             generationConfig: { maxOutputTokens: 256 }
           });
           const fallbackChat = fallbackModel.startChat({ history });
-          result = await fallbackChat.sendMessage(normalized.at(-1).content);
+          result = await withTimeout(fallbackChat.sendMessage(normalized.at(-1).content), 12000);
           console.info('Gemini fallback model gemini-3.6-flash completed request in ' + (Date.now() - requestStartedAt) + 'ms');
           break;
         }
