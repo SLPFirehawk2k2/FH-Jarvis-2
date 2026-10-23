@@ -173,6 +173,11 @@ function renderLocalTasks() {
       const remaining = document.createElement('small');
       remaining.textContent = task.endAt <= now ? 'DUE — alerting now' : formatDuration(task.endAt - now) + ' remaining';
       details.append(title, remaining);
+      if (Number.isFinite(task.repeatMs) && task.repeatMs >= 1000) {
+        const repeat = document.createElement('small');
+        repeat.textContent = 'REPEATS EVERY ' + formatDuration(task.repeatMs);
+        details.append(repeat);
+      }
       const actions = document.createElement('div');
       actions.className = 'task-actions';
       const snooze = document.createElement('button');
@@ -213,9 +218,15 @@ function localTaskTick() {
   const due = localTasks.filter(task => task.endAt <= now);
   if (due.length) {
     const dueIds = new Set(due.map(task => task.id));
-    localTasks = localTasks.filter(task => !dueIds.has(task.id));
+    localTasks = localTasks.filter(task => !dueIds.has(task.id) || (Number.isFinite(task.repeatMs) && task.repeatMs >= 1000));
+    for (const task of due) {
+      if (Number.isFinite(task.repeatMs) && task.repeatMs >= 1000) {
+        // Advance beyond "now" so returning to a sleeping tab never fires a burst of missed repeats.
+        do { task.endAt += task.repeatMs; } while (task.endAt <= now);
+      }
+      notifyTask(task);
+    }
     saveLocalTasks();
-    due.forEach(notifyTask);
   }
   renderLocalTasks();
 }
@@ -363,9 +374,10 @@ function localTaskIntent(text) {
   }
 
   const durationPattern = '(\\d+(?:\\.\\d+)?)\\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|h|m|s)\\b';
+  const recurringMatch = q.match(new RegExp('\\bremind me every\\s+' + durationPattern + '(?:\\s+to\\s+(.+))?'));
   const reminderMatch = q.match(new RegExp('\\bremind me in\\s+' + durationPattern + '(?:\\s+to\\s+(.+))?'));
   const timerMatch = q.match(new RegExp('\\b(?:set|start|create) (?:a )?timer (?:for\\s+)?' + durationPattern));
-  const match = reminderMatch || timerMatch;
+  const match = recurringMatch || reminderMatch || timerMatch;
   if (match) {
     const amount = Number(match[1]);
     const unit = match[2];
@@ -374,13 +386,24 @@ function localTaskIntent(text) {
     if (!Number.isFinite(durationMs) || durationMs < 1000 || durationMs > 7 * 24 * 3600000) {
       return 'Choose a duration between 1 second and 7 days.';
     }
-    const isReminder = !!reminderMatch;
+    const isReminder = !!(recurringMatch || reminderMatch);
+    const isRecurring = !!recurringMatch;
     const label = isReminder ? ((match[3] || '').trim() || 'your reminder') : 'your timer';
-    const task = { id: String(Date.now()) + Math.random().toString(36).slice(2, 7), kind: isReminder ? 'reminder' : 'timer', label, endAt: Date.now() + durationMs };
+    const task = {
+      id: String(Date.now()) + Math.random().toString(36).slice(2, 7),
+      kind: isReminder ? 'reminder' : 'timer',
+      label,
+      endAt: Date.now() + durationMs,
+      ...(isRecurring ? { repeatMs: durationMs } : {})
+    };
     if (localTasks.length >= 50) return 'You have reached the limit of 50 active timers and reminders. Cancel one before adding another.';
     localTasks.push(task);
     saveLocalTasks();
     renderLocalTasks();
+    if (isRecurring) {
+      return 'Recurring reminder set every ' + formatDuration(durationMs) +
+        (match[3] ? ' to ' + label : '.') + ' I’ll alert you while this page is open; cancel it from the dashboard to stop repeats.';
+    }
     return (isReminder ? 'Reminder set' : 'Timer started') + ' for ' + formatDuration(durationMs) +
       (isReminder && match[3] ? ': ' + label : '.') + ' I’ll alert you while this page is open; saved tasks remain listed if you return later.';
   }
