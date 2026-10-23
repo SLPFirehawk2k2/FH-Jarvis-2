@@ -23,3 +23,5 @@
 #task-notifications{margin-top:4px}
 #task-notifications:disabled{opacity:.65;cursor:default}
 .task-panel .fine-print{margin-top:10px}
+
+.chat-actions a.primary-button{text-decoration:none;display:inline-block}
