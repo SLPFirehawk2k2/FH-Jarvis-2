@@ -69,7 +69,11 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
       systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
       generationConfig: { maxOutputTokens: 768 }
     });
-    const history = normalized.slice(0, -1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+    // Gemini chat history must begin with a user turn. The UI sends only the
+    // latest eight messages, which can start on an assistant turn when sliced.
+    const historyMessages = normalized.slice(0, -1);
+    while (historyMessages.length && historyMessages[0].role !== 'user') historyMessages.shift();
+    const history = historyMessages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
     const chat = model.startChat({ history });
     let result;
     let lastError;
@@ -89,7 +93,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     const configuredModel = process.env.GEMINI_MODEL || defaultGeminiModel;
     const transientStatus = error => {
       const message = String(error?.message || '');
-      const match = message.match(/\\[(\\d{3})\\s*\\]/);
+      const match = message.match(/\[(\d{3})\s*\]/);
       const status = Number(error?.status || error?.response?.status || match?.[1] || 0);
       return {
         status,
