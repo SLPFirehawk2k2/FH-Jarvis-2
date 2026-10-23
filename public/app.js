@@ -132,7 +132,7 @@ function localTaskTick() {
     due.forEach(notifyTask);
   }
   const timers = localTasks.length;
-  const timerLabel = document.querySelector('.system-item:nth-of-type(3) small');
+  const timerLabel = $('timer-status');
   if (timerLabel) timerLabel.textContent = timers ? timers + ' active local task' + (timers === 1 ? '' : 's') : 'Browser-local timers';
 }
 function localTaskIntent(text) {
@@ -196,7 +196,7 @@ async function sendChat(content) {
     messages.push({ role: 'user', content: text });
     messages.push({ role: 'assistant', content: localReply });
     addMessage('assistant', localReply);
-    setNotice('Answered locally using your device clock. No Gemini request needed.');
+    setNotice('Handled locally by your browser. No Gemini request needed.');
     logActivity('Local tool handled request in browser.');
     speak(localReply);
     busy = false;
