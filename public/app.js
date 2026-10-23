@@ -98,17 +98,89 @@ function speak(text) {
   };
   speechSynthesis.speak(utterance);
 }
-function localTimeIntent(text) {
+const LOCAL_TASKS_KEY = 'jarvis.localTasks';
+let localTasks = [];
+try { localTasks = JSON.parse(store.get(LOCAL_TASKS_KEY, '[]')); } catch { localTasks = []; }
+if (!Array.isArray(localTasks)) localTasks = [];
+
+function saveLocalTasks() {
+  store.set(LOCAL_TASKS_KEY, JSON.stringify(localTasks));
+}
+function formatDuration(ms) {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h ? h + 'h' : '', m ? m + 'm' : '', s || (!h && !m) ? s + 's' : ''].filter(Boolean).join(' ');
+}
+function notifyTask(task) {
+  const message = (task.kind === 'reminder' ? 'Reminder: ' : 'Timer finished: ') + task.label;
+  logActivity(message);
+  setNotice(message);
+  speak(message);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('J.A.R.V.I.S. Mark II', { body: message }); } catch {}
+  }
+}
+function localTaskTick() {
+  const now = Date.now();
+  const due = localTasks.filter(task => task.endAt <= now);
+  if (due.length) {
+    const dueIds = new Set(due.map(task => task.id));
+    localTasks = localTasks.filter(task => !dueIds.has(task.id));
+    saveLocalTasks();
+    due.forEach(notifyTask);
+  }
+  const timers = localTasks.length;
+  const timerLabel = document.querySelector('.system-item:nth-of-type(3) small');
+  if (timerLabel) timerLabel.textContent = timers ? timers + ' active local task' + (timers === 1 ? '' : 's') : 'Browser-local timers';
+}
+function localTaskIntent(text) {
   const q = text.toLowerCase().replace(/[’']/g, '').trim();
   const asksTime = /\b(what time is it|current time|tell me the time|time right now|local time)\b/.test(q);
   const asksDate = /\b(what(?:s| is) todays date|current date|what day is it|todays date|date today)\b/.test(q);
-  if (!asksTime && !asksDate) return null;
-  const now = new Date();
-  const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-  const date = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  if (asksTime && asksDate) return 'It is ' + time + ' on ' + date + '.';
-  if (asksDate) return 'Today is ' + date + '.';
-  return 'The current time on this device is ' + time + '.';
+  if (asksTime || asksDate) {
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+    const date = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    if (asksTime && asksDate) return 'It is ' + time + ' on ' + date + '.';
+    if (asksDate) return 'Today is ' + date + '.';
+    return 'The current time on this device is ' + time + '.';
+  }
+
+  if (/\b(list|show|check) (my )?(timers|reminders|active timers|active reminders)\b/.test(q) || /\bhow many (timers|reminders)\b/.test(q)) {
+    if (!localTasks.length) return 'You have no active timers or reminders.';
+    return 'You have ' + localTasks.length + ' active local task' + (localTasks.length === 1 ? ': ' : 's: ') +
+      localTasks.map(task => task.kind + ' “' + task.label + '” in ' + formatDuration(task.endAt - Date.now())).join('; ') + '.';
+  }
+  if (/\b(cancel|clear|stop) (all )?(my )?(timers|reminders|timer|reminder)\b/.test(q)) {
+    const count = localTasks.length;
+    localTasks = [];
+    saveLocalTasks();
+    return count ? 'Cancelled ' + count + ' active timer or reminder' + (count === 1 ? '' : 's') + '.' : 'There are no active timers or reminders to cancel.';
+  }
+
+  const durationPattern = '(\\d+(?:\\.\\d+)?)\\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|h|m|s)\\b';
+  const reminderMatch = q.match(new RegExp('\\bremind me in\\s+' + durationPattern + '(?:\\s+to\\s+(.+))?'));
+  const timerMatch = q.match(new RegExp('\\b(?:set|start|create) (?:a )?timer (?:for\\s+)?' + durationPattern));
+  const match = reminderMatch || timerMatch;
+  if (match) {
+    const amount = Number(match[1]);
+    const unit = match[2];
+    const multiplier = /^h|hour|hr/.test(unit) ? 3600000 : /^m|min/.test(unit) ? 60000 : 1000;
+    const durationMs = amount * multiplier;
+    if (!Number.isFinite(durationMs) || durationMs < 1000 || durationMs > 7 * 24 * 3600000) {
+      return 'Choose a duration between 1 second and 7 days.';
+    }
+    const isReminder = !!reminderMatch;
+    const label = isReminder ? ((match[3] || '').trim() || 'your reminder') : 'your timer';
+    const task = { id: String(Date.now()) + Math.random().toString(36).slice(2, 7), kind: isReminder ? 'reminder' : 'timer', label, endAt: Date.now() + durationMs };
+    localTasks.push(task);
+    saveLocalTasks();
+    return (isReminder ? 'Reminder set' : 'Timer started') + ' for ' + formatDuration(durationMs) +
+      (isReminder && match[3] ? ': ' + label : '.') + ' I’ll notify you while this page remains open.';
+  }
+  return null;
 }
 async function sendChat(content) {
   const text = String(content || '').trim();
@@ -116,7 +188,7 @@ async function sendChat(content) {
     if (busy && text) setNotice('I’m still processing the previous request. Please try again in a moment.');
     return;
   }
-  const localReply = localTimeIntent(text);
+  const localReply = localTaskIntent(text);
   if (localReply) {
     busy = true;
     $('chat-state').textContent = 'LOCAL';
@@ -125,7 +197,7 @@ async function sendChat(content) {
     messages.push({ role: 'assistant', content: localReply });
     addMessage('assistant', localReply);
     setNotice('Answered locally using your device clock. No Gemini request needed.');
-    logActivity('Local clock intent handled by browser.');
+    logActivity('Local tool handled request in browser.');
     speak(localReply);
     busy = false;
     $('chat-state').textContent = 'STANDBY';
@@ -374,4 +446,6 @@ $('handsfree-button').addEventListener('click', () => {
 function tick() { $('clock').textContent = new Date().toLocaleTimeString(); }
 tick();
 window.setInterval(tick, 1000);
+localTaskTick();
+window.setInterval(localTaskTick, 1000);
 diagnostics();
