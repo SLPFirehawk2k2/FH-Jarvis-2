@@ -11,7 +11,7 @@ services:
         value: production
       - key: GEMINI_API_KEY
         sync: false
-      - key: JARVIS_ACCESS_TOKEN
-        sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
+      - key: ALLOWED_ORIGINS
+        value: https://jarvis-mark-ii.onrender.com
