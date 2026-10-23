@@ -502,10 +502,20 @@ $('settings-button').addEventListener('click', () => {
   $('settings-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 $('save-settings').addEventListener('click', async () => {
-  const url = $('backend-url').value.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(url)) return setNotice('Enter a valid backend URL starting with http:// or https://.', true);
-  backendUrl = url;
+  const rawUrl = $('backend-url').value.trim();
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch {
+    return setNotice('Enter a valid backend origin, such as https://your-service.onrender.com.', true);
+  }
+  const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+  if (!['http:', 'https:'].includes(parsed.protocol) ||
+      (parsed.protocol !== 'https:' && !localHost) ||
+      parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    return setNotice('Use a backend origin only (no path, query, or credentials). HTTPS is required except for localhost development.', true);
+  }
+  backendUrl = parsed.origin;
   store.set('jarvis.backend', backendUrl);
+  $('backend-url').value = backendUrl;
   setNotice('Settings saved. Testing connection…');
   await diagnostics();
 });
