@@ -458,6 +458,8 @@ async function sendChat(content) {
       setNotice('Weather retrieved directly from the weather service.');
       speak(weatherReply);
     } catch (error) {
+      // Do not retain a failed user-only turn in Gemini history.
+      if (messages.at(-1)?.role === 'user' && messages.at(-1)?.content === text) messages.pop();
       addMessage('assistant', 'I could not retrieve the weather. ' + error.message);
       setNotice(error.message, true);
       logActivity('Weather lookup failed: ' + error.message);
@@ -503,6 +505,8 @@ async function sendChat(content) {
     setNotice('Response in ' + (roundTripMs / 1000).toFixed(1) + 's' + (Number.isFinite(d.elapsedMs) ? ' · AI took ' + (d.elapsedMs / 1000).toFixed(1) + 's' : '') + '.');
     speak(d.reply);
   } catch (e) {
+    // Remove the unanswered turn so the next Gemini request starts with valid chat history.
+    if (messages.at(-1)?.role === 'user' && messages.at(-1)?.content === text) messages.pop();
     addMessage('assistant', 'I could not complete that request. ' + e.message);
     setNotice(e.message, true);
     logActivity('Chat failed after ' + Math.round(performance.now() - requestStartedAt) + ' ms: ' + e.message);
