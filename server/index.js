@@ -73,44 +73,72 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     const chat = model.startChat({ history });
     let result;
     let lastError;
-    // Gemini can temporarily return 429/5xx even when both keys are valid.
-    // Retry only transient provider errors once; never retry authentication or input errors.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        result = await withTimeout(chat.sendMessage(normalized.at(-1).content), 12000);
-        break;
-      } catch (error) {
-        lastError = error;
-        const message = String(error?.message || '');
-        const match = message.match(/\[(\d{3})\s*\]/);
-        const status = Number(error?.status || error?.response?.status || match?.[1] || 0);
-        const transient = [429, 500, 502, 503, 504].includes(status) ||
-          /high demand|temporarily unavailable|overloaded|rate limit/i.test(message);
-        if (!transient) throw error;
-        const timedOut = /timed out/i.test(message);
-        if (attempt === 0 && !timedOut) {
-          console.warn('Gemini temporary provider error (' + (status || 'unknown') + '); retrying once after 1200ms.');
-          await new Promise(resolve => setTimeout(resolve, 1200));
-          continue;
-        }
-
-        // If Gemini 3.8 Flash is still overloaded or takes too long, try a
-        // backup model. Bound each provider call so the UI is not left waiting
-        // for minutes on a slow provider response.
-        const configuredModel = process.env.GEMINI_MODEL || defaultGeminiModel;
-        if (configuredModel === 'gemini-3.8-flash') {
-          console.warn('Gemini 3.8 Flash unavailable/slow; trying fallback model gemini-3.6-flash.');
-          const fallbackModel = client.getGenerativeModel({
-            model: 'gemini-3.6-flash',
-            systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
-            generationConfig: { maxOutputTokens: 768 }
-          });
-          const fallbackChat = fallbackModel.startChat({ history });
-          result = await withTimeout(fallbackChat.sendMessage(normalized.at(-1).content), 12000);
-          console.info('Gemini fallback model gemini-3.6-flash completed request in ' + (Date.now() - requestStartedAt) + 'ms');
-          break;
-        }
+    // Keep the entire provider recovery path inside one 18-second budget.
+    // A 429 usually needs a fallback, not another call to the same throttled model.
+    const deadlineAt = Date.now() + 18000;
+    const remainingBudget = () => Math.max(0, deadlineAt - Date.now());
+    const sendWithinBudget = async (targetChat, capMs = 8000) => {
+      const remaining = remainingBudget();
+      if (remaining <= 0) {
+        const error = new Error('Gemini request exceeded the 18-second response budget');
+        error.status = 504;
         throw error;
+      }
+      return withTimeout(targetChat.sendMessage(normalized.at(-1).content), Math.min(capMs, remaining));
+    };
+    const configuredModel = process.env.GEMINI_MODEL || defaultGeminiModel;
+    const transientStatus = error => {
+      const message = String(error?.message || '');
+      const match = message.match(/\\[(\\d{3})\\s*\\]/);
+      const status = Number(error?.status || error?.response?.status || match?.[1] || 0);
+      return {
+        status,
+        transient: [429, 500, 502, 503, 504].includes(status) ||
+          /high demand|temporarily unavailable|overloaded|rate limit/i.test(message),
+        timedOut: /timed out|response budget/i.test(message)
+      };
+    };
+    const tryFallback = async () => {
+      if (configuredModel !== 'gemini-3.8-flash') throw lastError;
+      const remaining = remainingBudget();
+      if (remaining <= 0) throw lastError;
+      console.warn('Gemini 3.8 Flash unavailable/slow; trying fallback model gemini-3.6-flash (' + remaining + 'ms budget left).');
+      const fallbackModel = client.getGenerativeModel({
+        model: 'gemini-3.6-flash',
+        systemInstruction: 'You are J.A.R.V.I.S. Mark II, a helpful, calm, concise assistant. Be transparent about limitations. Do not claim to control devices or services unless a real integration exists.',
+        generationConfig: { maxOutputTokens: 768 }
+      });
+      const fallbackChat = fallbackModel.startChat({ history });
+      result = await sendWithinBudget(fallbackChat, remaining);
+      console.info('Gemini fallback model gemini-3.6-flash completed request in ' + (Date.now() - requestStartedAt) + 'ms');
+    };
+
+    try {
+      result = await sendWithinBudget(chat);
+    } catch (error) {
+      lastError = error;
+      const state = transientStatus(error);
+      if (!state.transient) throw error;
+
+      // Rate limits and timeouts go straight to fallback; retrying the same model
+      // adds latency without helping the common quota/overload case.
+      if (state.status === 429 || state.timedOut) {
+        await tryFallback();
+      } else {
+        console.warn('Gemini temporary provider error (' + (state.status || 'unknown') + '); one quick retry allowed.');
+        if (remainingBudget() > 9000) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            result = await sendWithinBudget(chat);
+          } catch (retryError) {
+            lastError = retryError;
+            const retryState = transientStatus(retryError);
+            if (!retryState.transient) throw retryError;
+            await tryFallback();
+          }
+        } else {
+          await tryFallback();
+        }
       }
     }
     if (!result) throw lastError || new Error('Gemini returned no result.');
@@ -126,7 +154,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
       return res.status(502).json({ code: 'GEMINI_AUTH', error: 'Gemini rejected the server API key. Check GEMINI_API_KEY in Render Environment. Re-entering the J.A.R.V.I.S. access token will not fix this.' });
     }
     if ([429, 500, 502, 503, 504].includes(providerStatus) || /high demand|temporarily unavailable|overloaded|rate limit/i.test(message)) {
-      return res.status(503).json({ code: 'GEMINI_TEMPORARY', error: 'Gemini is temporarily busy or rate-limited. Your J.A.R.V.I.S. access token is still accepted; wait a few seconds and retry. No need to re-enter your token.' });
+      return res.status(503).json({ code: 'GEMINI_TEMPORARY', error: 'Gemini is temporarily busy or rate-limited. Wait a few seconds and retry; J.A.R.V.I.S. does not require an access token.' });
     }
     return res.status(502).json({ code: 'GEMINI_ERROR', error: 'Gemini request failed. Check the server-side Gemini model/API-key configuration and provider status.' });
   }
