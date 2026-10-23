@@ -2,3 +2,5 @@
 .settings-panel .remember-option{display:flex;align-items:center;gap:9px;line-height:1.5}.settings-panel .remember-option input[type=checkbox]{display:inline-block;width:auto;margin:0;accent-color:var(--cyan)}
 
 .weather-divider{height:1px;background:#2acdef20;margin:12px 0 14px}.weather-heading{padding-bottom:10px}.weather-output{font-size:11px;line-height:1.65;color:#c5e5ed;padding:12px 0;overflow-wrap:anywhere}.weather-label{display:block;font-size:10px;color:#7ca8b7;margin:8px 0 6px}.weather-location{display:block;width:100%;padding:10px;border:1px solid #50eaff33;font-size:11px}.weather-location:focus{border-color:var(--cyan)}#weather-refresh{margin-top:10px}
+
+.weather-attribution{font-size:9px;color:var(--muted);line-height:1.5}.weather-attribution a{color:var(--cyan)}
