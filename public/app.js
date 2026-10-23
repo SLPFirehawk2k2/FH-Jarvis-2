@@ -255,7 +255,6 @@ $('save-settings').addEventListener('click', async () => {
 $('clear-settings').addEventListener('click', () => {
   store.remove('jarvis.backend');
   backendUrl = location.origin;
-  accessToken = '';
   $('backend-url').value = backendUrl;
   diagnostics();
 });
