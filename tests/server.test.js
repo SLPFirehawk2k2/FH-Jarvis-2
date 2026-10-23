@@ -9,6 +9,7 @@ async function startServer(t, port, extraEnv = {}) {
       NODE_ENV: 'test',
       PORT: String(port),
       GEMINI_API_KEY: '',
+      GROQ_API_KEY: '',
       ALLOWED_ORIGINS: '',
       JARVIS_ACCESS_TOKEN: '',
       ...extraEnv
@@ -66,7 +67,7 @@ test('chat without a Gemini key returns a helpful 503', async t => {
     body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] })
   });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /GEMINI_API_KEY/);
+  assert.match((await response.json()).error, /GROQ_API_KEY or GEMINI_API_KEY/);
 });
 
 test('invalid chat payload is rejected before provider access', async t => {
@@ -196,4 +197,21 @@ test('chat history rejects consecutive messages from the same role', async t => 
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /alternate/);
+});
+
+test('status prefers Groq and advertises Gemini backup when both keys exist', async t => {
+  const port = 7917 + Math.floor(Math.random() * 200);
+  await startServer(t, port, { GROQ_API_KEY: 'test-only', GEMINI_API_KEY: 'test-only' });
+  const response = await fetch('http://127.0.0.1:' + port + '/api/status');
+  const status = await response.json();
+  assert.equal(status.provider, 'groq');
+  assert.equal(status.backupConfigured, true);
+  assert.equal(status.model, 'openai/gpt-oss-120b');
+});
+test('status selects Gemini when Groq is unconfigured', async t => {
+  const port = 8217 + Math.floor(Math.random() * 200);
+  await startServer(t, port, { GEMINI_API_KEY: 'test-only' });
+  const status = await (await fetch('http://127.0.0.1:' + port + '/api/status')).json();
+  assert.equal(status.provider, 'gemini');
+  assert.equal(status.backupConfigured, false);
 });
