@@ -71,13 +71,42 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
     });
     const history = normalized.slice(0, -1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
     const chat = model.startChat({ history });
-    const result = await chat.sendMessage(normalized.at(-1).content);
+    let result;
+    let lastError;
+    // Gemini can temporarily return 429/5xx even when both keys are valid.
+    // Retry only transient provider errors once; never retry authentication or input errors.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        result = await chat.sendMessage(normalized.at(-1).content);
+        break;
+      } catch (error) {
+        lastError = error;
+        const message = String(error?.message || '');
+        const match = message.match(/\\[(\\d{3})\\s*\\]/);
+        const status = Number(error?.status || error?.response?.status || match?.[1] || 0);
+        const transient = [429, 500, 502, 503, 504].includes(status) ||
+          /high demand|temporarily unavailable|overloaded|rate limit/i.test(message);
+        if (!transient || attempt === 1) throw error;
+        console.warn('Gemini temporary provider error (' + (status || 'unknown') + '); retrying once after 1200ms.');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+    }
+    if (!result) throw lastError || new Error('Gemini returned no result.');
     const reply = result.response.text();
     console.info('Gemini request completed in ' + (Date.now() - requestStartedAt) + 'ms');
     return res.json({ reply, elapsedMs: Date.now() - requestStartedAt });
   } catch (error) {
-    console.error('Gemini request failed after ' + (Date.now() - requestStartedAt) + 'ms:', error?.message || 'unknown error');
-    return res.status(502).json({ error: 'Gemini request failed. Check server configuration and provider status.' });
+    const message = String(error?.message || 'unknown error');
+    const match = message.match(/\\[(\\d{3})\\s*\\]/);
+    const providerStatus = Number(error?.status || error?.response?.status || match?.[1] || 0);
+    console.error('Gemini request failed after ' + (Date.now() - requestStartedAt) + 'ms (provider ' + (providerStatus || 'unknown') + '):', message);
+    if (providerStatus === 401 || providerStatus === 403 || /api key not valid|invalid api key/i.test(message)) {
+      return res.status(502).json({ code: 'GEMINI_AUTH', error: 'Gemini rejected the server API key. Check GEMINI_API_KEY in Render Environment. Re-entering the J.A.R.V.I.S. access token will not fix this.' });
+    }
+    if ([429, 500, 502, 503, 504].includes(providerStatus) || /high demand|temporarily unavailable|overloaded|rate limit/i.test(message)) {
+      return res.status(503).json({ code: 'GEMINI_TEMPORARY', error: 'Gemini is temporarily busy or rate-limited. Your J.A.R.V.I.S. access token is still accepted; wait a few seconds and retry. No need to re-enter your token.' });
+    }
+    return res.status(502).json({ code: 'GEMINI_ERROR', error: 'Gemini request failed. Check the server-side Gemini model/API-key configuration and provider status.' });
   }
 });
 
