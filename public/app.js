@@ -131,6 +131,101 @@ function localTaskTick() {
   const timerLabel = $('timer-status');
   if (timerLabel) timerLabel.textContent = timers ? timers + ' active local task' + (timers === 1 ? '' : 's') : 'Browser-local timers';
 }
+
+const weatherDescriptions = {
+  0: 'Clear sky', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  45: 'Fog', 48: 'Freezing fog', 51: 'Light drizzle', 53: 'Drizzle',
+  55: 'Heavy drizzle', 56: 'Light freezing drizzle', 57: 'Freezing drizzle',
+  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Light freezing rain',
+  67: 'Freezing rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+  77: 'Snow grains', 80: 'Light rain showers', 81: 'Rain showers',
+  82: 'Heavy rain showers', 85: 'Snow showers', 86: 'Heavy snow showers',
+  95: 'Thunderstorm', 96: 'Thunderstorm with small hail', 99: 'Thunderstorm with heavy hail'
+};
+function weatherDescription(code) {
+  return weatherDescriptions[Number(code)] || 'Conditions unavailable';
+}
+function isWeatherRequest(text) {
+  return /\b(weather|forecast|temperature|is it raining|will it rain|rain today|snow today)\b/i.test(text);
+}
+async function geocodeWeatherLocation(name) {
+  const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+  url.search = new URLSearchParams({ name, count: '1', language: 'en', format: 'json' });
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('The location search service is unavailable.');
+  const data = await response.json();
+  if (!data.results?.length) throw new Error('I could not find that location. Try a city and state, such as Mineola, New York.');
+  return data.results[0];
+}
+function getBrowserCoordinates() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('This browser does not support location access.'));
+    navigator.geolocation.getCurrentPosition(
+      position => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, name: 'Your current location' }),
+      error => reject(new Error(error.code === 1 ? 'Location permission was denied.' : 'Your current location could not be determined.')),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+}
+async function fetchWeather(locationQuery = '') {
+  let place;
+  if (locationQuery.trim()) {
+    place = await geocodeWeatherLocation(locationQuery.trim());
+  } else {
+    try {
+      place = await getBrowserCoordinates();
+    } catch (error) {
+      const savedLocation = $('weather-location')?.value.trim();
+      if (!savedLocation) throw new Error(error.message + ' Enter a city in the Weather panel and try again.');
+      place = await geocodeWeatherLocation(savedLocation);
+    }
+  }
+  const params = new URLSearchParams({
+    latitude: String(place.latitude),
+    longitude: String(place.longitude),
+    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m',
+    daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+    temperature_unit: 'fahrenheit',
+    wind_speed_unit: 'mph',
+    timezone: 'auto',
+    forecast_days: '1'
+  });
+  const response = await fetch('https://api.open-meteo.com/v1/forecast?' + params.toString());
+  if (!response.ok) throw new Error('The weather service did not respond successfully. Try again shortly.');
+  const data = await response.json();
+  if (!data.current || !data.daily) throw new Error('The weather service returned incomplete data.');
+  const locationName = [place.name, place.admin1, place.country].filter(Boolean).join(', ');
+  const current = data.current;
+  const daily = data.daily;
+  const result = 'Weather for ' + locationName + ': ' + weatherDescription(current.weather_code) +
+    ', ' + Math.round(current.temperature_2m) + '°F, feels like ' + Math.round(current.apparent_temperature) + '°F. ' +
+    'Today: high ' + Math.round(daily.temperature_2m_max[0]) + '°F, low ' + Math.round(daily.temperature_2m_min[0]) + '°F' +
+    (daily.precipitation_probability_max?.[0] != null ? ', precipitation chance up to ' + daily.precipitation_probability_max[0] + '%' : '') +
+    '. Wind ' + Math.round(current.wind_speed_10m) + ' mph; humidity ' + Math.round(current.relative_humidity_2m) + '%.';
+  const output = $('weather-output');
+  if (output) output.textContent = result;
+  const status = $('weather-status');
+  if (status) status.textContent = 'UPDATED ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  logActivity('Weather updated for ' + (place.name || 'current location') + '.');
+  return result;
+}
+async function refreshWeather() {
+  const button = $('weather-refresh');
+  if (button) button.disabled = true;
+  const output = $('weather-output');
+  if (output) output.textContent = 'Fetching local weather…';
+  try {
+    const result = await fetchWeather($('weather-location')?.value.trim() || '');
+    setNotice('Weather updated.');
+    if (output) output.textContent = result;
+  } catch (error) {
+    if (output) output.textContent = error.message;
+    setNotice(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function localTaskIntent(text) {
   const q = text.toLowerCase().replace(/[’']/g, '').trim();
   const asksTime = /\b(what time is it|current time|tell me the time|time right now|local time)\b/.test(q);
@@ -182,6 +277,32 @@ async function sendChat(content) {
   const text = String(content || '').trim();
   if (!text || busy) {
     if (busy && text) setNotice('I’m still processing the previous request. Please try again in a moment.');
+    return;
+  }
+  if (isWeatherRequest(text)) {
+    busy = true;
+    $('chat-state').textContent = 'LOCAL WEATHER';
+    $('message-input').disabled = true;
+    addMessage('user', text);
+    messages.push({ role: 'user', content: text });
+    try {
+      const locationMatch = text.match(/\\b(?:weather|forecast|temperature)\\s+(?:in|for)\\s+([^?!.]+)(?:[?!.]|$)/i);
+      const locationQuery = locationMatch?.[1]?.trim() || '';
+      const weatherReply = await fetchWeather(locationQuery);
+      messages.push({ role: 'assistant', content: weatherReply });
+      addMessage('assistant', weatherReply);
+      setNotice('Weather retrieved directly from the weather service.');
+      speak(weatherReply);
+    } catch (error) {
+      addMessage('assistant', 'I could not retrieve the weather. ' + error.message);
+      setNotice(error.message, true);
+      logActivity('Weather lookup failed: ' + error.message);
+    } finally {
+      busy = false;
+      $('chat-state').textContent = 'STANDBY';
+      $('message-input').disabled = false;
+      if (!pushToTalkActive) $('message-input').focus();
+    }
     return;
   }
   const localReply = localTaskIntent(text);
@@ -259,6 +380,7 @@ $('clear-settings').addEventListener('click', () => {
   diagnostics();
 });
 $('refresh-status').addEventListener('click', diagnostics);
+$('weather-refresh').addEventListener('click', refreshWeather);
 
 $('speak-toggle').classList.toggle('active', voiceReplies);
 $('speak-toggle').textContent = voiceReplies ? '♫ VOICE REPLIES ON' : '♫ VOICE REPLIES OFF';
