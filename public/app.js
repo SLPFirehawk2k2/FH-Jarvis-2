@@ -40,9 +40,9 @@ async function diagnostics() {
     const d = await api('/api/status');
     $('endpoint-status').textContent = 'ONLINE';
     $('config-status').textContent = d.aiConfigured ? 'CONFIGURED' : 'NO API KEY';
-    $('ai-status').textContent = d.aiConfigured ? 'READY' : 'NEEDS KEY';
+    $('ai-status').textContent = d.aiConfigured ? 'CONFIGURED' : 'NEEDS KEY';
     $('cloud-dot').classList.toggle('dot-off', !d.aiConfigured);
-    $('connection-label').textContent = d.aiConfigured ? 'CLOUD LINK READY' : 'API KEY NEEDED';
+    $('connection-label').textContent = d.aiConfigured ? 'CLOUD CONFIGURED' : 'API KEY NEEDED';
     logActivity('Backend checked: ' + (d.aiConfigured ? 'Gemini configured' : 'Gemini key missing'));
   } catch (e) {
     $('endpoint-status').textContent = 'OFFLINE';
