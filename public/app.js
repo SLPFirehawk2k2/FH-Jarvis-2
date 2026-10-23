@@ -53,10 +53,10 @@ async function diagnostics() {
     const d = await api('/api/status');
     $('endpoint-status').textContent = 'ONLINE';
     $('config-status').textContent = d.aiConfigured ? 'CONFIGURED' : 'NO API KEY';
-    $('ai-status').textContent = d.aiConfigured ? 'CONFIGURED' : 'NEEDS KEY';
+    $('ai-status').textContent = d.aiConfigured ? (d.provider || 'CLOUD').toUpperCase() : 'NEEDS KEY';
     $('cloud-dot').classList.toggle('dot-off', !d.aiConfigured);
     $('connection-label').textContent = d.aiConfigured ? 'CLOUD CONFIGURED' : 'API KEY NEEDED';
-    logActivity('Backend checked: ' + (d.aiConfigured ? 'Gemini configured' : 'Gemini key missing'));
+    logActivity('Backend checked: ' + (d.aiConfigured ? ((d.provider || 'cloud AI').toUpperCase() + ' configured; model ' + (d.model || 'unknown')) : 'Cloud AI key missing'));
   } catch (e) {
     $('endpoint-status').textContent = 'OFFLINE';
     $('config-status').textContent = 'UNKNOWN';
@@ -462,7 +462,7 @@ async function sendChat(content) {
       setNotice('Weather retrieved directly from the weather service.');
       speak(weatherReply);
     } catch (error) {
-      // Do not retain a failed user-only turn in Gemini history.
+      // Do not retain a failed user-only turn in AI history.
       if (messages.at(-1)?.role === 'user' && messages.at(-1)?.content === text) messages.pop();
       addMessage('assistant', 'I could not retrieve the weather. ' + error.message);
       setNotice(error.message, true);
@@ -483,7 +483,7 @@ async function sendChat(content) {
     messages.push({ role: 'user', content: text });
     messages.push({ role: 'assistant', content: localReply });
     addMessage('assistant', localReply);
-    setNotice('Handled locally by your browser. No Gemini request needed.');
+    setNotice('Handled locally by your browser. No cloud AI request needed.');
     logActivity('Local tool handled request in browser.');
     speak(localReply);
     busy = false;
@@ -505,11 +505,12 @@ async function sendChat(content) {
     messages.push({ role: 'assistant', content: d.reply });
     addMessage('assistant', d.reply);
     const roundTripMs = Math.round(performance.now() - requestStartedAt);
-    logActivity('AI response in ' + roundTripMs + ' ms' + (Number.isFinite(d.elapsedMs) ? ' (provider ' + d.elapsedMs + ' ms)' : ''));
+    logActivity('AI response via ' + (d.provider || 'unknown provider').toUpperCase() + ' / ' + (d.model || 'unknown model') + ' in ' + roundTripMs + ' ms');
+    setNotice('AI RESPONSE: ' + (d.provider || 'unknown').toUpperCase() + ' · ' + (d.model || 'unknown model'));
     setNotice('Response in ' + (roundTripMs / 1000).toFixed(1) + 's' + (Number.isFinite(d.elapsedMs) ? ' · AI took ' + (d.elapsedMs / 1000).toFixed(1) + 's' : '') + '.');
     speak(d.reply);
   } catch (e) {
-    // Remove the unanswered turn so the next Gemini request starts with valid chat history.
+    // Remove the unanswered turn so the next AI request starts with valid chat history.
     if (messages.at(-1)?.role === 'user' && messages.at(-1)?.content === text) messages.pop();
     addMessage('assistant', 'I could not complete that request. ' + e.message);
     setNotice(e.message, true);
