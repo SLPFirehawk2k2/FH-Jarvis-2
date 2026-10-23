@@ -13,6 +13,7 @@ let wakeWordArmed = false;
 let speaking = false;
 let busy = false;
 let restartRequested = false;
+let voiceRestartAttempts = 0;
 let messages = [];
 
 $('backend-url').value = backendUrl;
@@ -612,7 +613,10 @@ function makeRecognition() {
       }
     }
     if (handsFree) {
-      if (latestFinal) handleHandsFreePhrase(latestFinal);
+      if (latestFinal) {
+        voiceRestartAttempts = 0;
+        handleHandsFreePhrase(latestFinal);
+      }
     } else {
       $('message-input').value = (finalTranscript + (interim ? ' ' + interim : '')).trim();
     }
@@ -632,10 +636,14 @@ function makeRecognition() {
   };
   r.onend = () => {
     if (handsFree && !speaking) {
-      // Chrome can end a recognition session even in continuous mode. Restart safely.
+      // Browser speech sessions can end during silence or transient network errors.
+      // Back off to avoid rapid restart loops, while keeping hands-free available.
+      voiceRestartAttempts = Math.min(voiceRestartAttempts + 1, 5);
+      const retryDelay = Math.min(350 * (2 ** (voiceRestartAttempts - 1)), 5000);
+      $('voice-status').textContent = 'RETRYING';
       window.setTimeout(() => {
         if (handsFree && !speaking) startRecognition();
-      }, 350);
+      }, retryDelay);
       return;
     }
     if (pushToTalkActive) {
