@@ -13,6 +13,12 @@ app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 3000);
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
+const connectSrcOrigins = (process.env.CONNECT_SRC_ORIGINS || '').split(',').map(value => {
+  try {
+    const url = new URL(value.trim());
+    return ['http:', 'https:'].includes(url.protocol) ? url.origin : null;
+  } catch { return null; }
+}).filter(Boolean);
 const defaultGeminiModel = 'gemini-3.8-flash';
 
 app.disable('x-powered-by');
@@ -23,7 +29,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com'],
+      connectSrc: ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com', ...connectSrcOrigins],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       frameAncestors: ["'none'"],
@@ -34,7 +40,22 @@ app.use(helmet({
 app.use(express.json({ limit: '32kb' }));
 app.use((req, res, next) => {
   const origin = req.get('origin');
-  if (origin && allowedOrigins.length && !allowedOrigins.includes(origin)) return res.status(403).json({ error: 'Origin not allowed.' });
+  if (origin && allowedOrigins.length && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Origin not allowed.' });
+  }
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.vary('Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '600');
+  }
+  if (req.method === 'OPTIONS') {
+    if (!origin || !allowedOrigins.includes(origin)) {
+      return res.status(403).json({ error: 'Origin not allowed for cross-origin requests.' });
+    }
+    return res.status(204).end();
+  }
   next();
 });
 
