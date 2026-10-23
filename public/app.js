@@ -234,8 +234,9 @@ function localTaskTick() {
     localTasks = localTasks.filter(task => !dueIds.has(task.id) || (Number.isFinite(task.repeatMs) && task.repeatMs >= 1000));
     for (const task of due) {
       if (Number.isFinite(task.repeatMs) && task.repeatMs >= 1000) {
-        // Advance beyond "now" so returning to a sleeping tab never fires a burst of missed repeats.
-        do { task.endAt += task.repeatMs; } while (task.endAt <= now);
+        // Skip missed intervals in O(1) time so long-suspended tabs cannot trigger a huge loop.
+        const missedIntervals = Math.floor((now - task.endAt) / task.repeatMs) + 1;
+        task.endAt += missedIntervals * task.repeatMs;
       }
       notifyTask(task);
     }
