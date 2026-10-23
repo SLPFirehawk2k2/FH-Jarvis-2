@@ -82,7 +82,7 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
       } catch (error) {
         lastError = error;
         const message = String(error?.message || '');
-        const match = message.match(/\\[(\\d{3})\\s*\\]/);
+        const match = message.match(/\[(\d{3})\s*\]/);
         const status = Number(error?.status || error?.response?.status || match?.[1] || 0);
         const transient = [429, 500, 502, 503, 504].includes(status) ||
           /high demand|temporarily unavailable|overloaded|rate limit/i.test(message);
@@ -97,7 +97,7 @@ app.post('/api/chat', requireAccess, chatLimiter, async (req, res) => {
     return res.json({ reply, elapsedMs: Date.now() - requestStartedAt });
   } catch (error) {
     const message = String(error?.message || 'unknown error');
-    const match = message.match(/\\[(\\d{3})\\s*\\]/);
+    const match = message.match(/\[(\d{3})\s*\]/);
     const providerStatus = Number(error?.status || error?.response?.status || match?.[1] || 0);
     console.error('Gemini request failed after ' + (Date.now() - requestStartedAt) + 'ms (provider ' + (providerStatus || 'unknown') + '):', message);
     if (providerStatus === 401 || providerStatus === 403 || /api key not valid|invalid api key/i.test(message)) {
