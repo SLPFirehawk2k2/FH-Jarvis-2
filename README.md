@@ -1,29 +1,51 @@
 # J.A.R.V.I.S. Mark II
 
-A clean cloud-ready browser assistant starter: cyan holographic HUD, typed chat, browser speech input/output, and server-side Google Gemini integration.
+A browser-based J.A.R.V.I.S. assistant with a cyan HUD, text chat, browser speech input/output, server-side Google Gemini chat, local timers/reminders, and local weather lookup.
 
 ## Requirements
-- Node.js 20+
-- Google Gemini API key
+
+- Node.js 20 or newer
+- A Google Gemini API key for AI chat
 
 ## Run locally
+
 1. Copy `.env.example` to `.env`.
-2. Add your key to `GEMINI_API_KEY`; set a long random `JARVIS_ACCESS_TOKEN`.
-3. Run `npm install`, then `npm start`.
-4. Open http://localhost:3000 and set the backend URL/token in HUD Settings if needed.
+2. Put your Gemini key in `GEMINI_API_KEY` in `.env`. Keep this key on the server; never put it in browser code or commit your real `.env` file.
+3. Install dependencies: `npm install`.
+4. Run tests: `npm test`.
+5. Start the app: `npm start`.
+6. Open http://localhost:3000.
 
-## Environment
+No J.A.R.V.I.S. access-token prompt is required.
+
+## Environment variables
+
 - `GEMINI_API_KEY`: required for AI chat; server-side only.
-- `GEMINI_MODEL`: defaults to `gemini-2.5-flash`.
-- `JARVIS_ACCESS_TOKEN`: bearer-token gate for API routes. Required at startup when `NODE_ENV=production`; use a long, random secret.
-- `ALLOWED_ORIGINS`: optional comma-separated origin allowlist.
-- `PORT`: defaults to 3000.
+- `GEMINI_MODEL`: defaults to `gemini-3.8-flash`. If that model is unavailable, overloaded, rate-limited, or times out, the server can fall back to `gemini-3.6-flash` within a bounded response budget.
+- `ALLOWED_ORIGINS`: optional comma-separated browser-origin allowlist. Set this to your deployed origin in production. This is an origin check, not authentication.
+- `PORT`: port for the local/server process; defaults to `3000` (Render provides its own value).
 
-## Deploy
-Use the included `render.yaml` as a Render Blueprint or create a Node web service with `npm install` / `npm start`. Configure Gemini and access-token values as secret environment variables. Production startup intentionally fails if `JARVIS_ACCESS_TOKEN` is missing. The repository includes a GitHub Actions test workflow.
+## Render deployment
+
+The live Mark II service is configured in Render to deploy the `main` branch of this repository automatically. It uses `npm install`, `npm start`, and the `/health` health check. Configure `GEMINI_API_KEY` as a secret environment variable in Render. Do not add an access-token variable unless the application is intentionally redesigned to use one.
+
+The `render.yaml` file describes the service and its non-secret settings. Review the Blueprint before applying it to an existing service.
+
+## Weather
+
+The dashboard can use browser location permission or a manually entered city. Weather lookup uses the Open-Meteo geocoding and forecast APIs; no API key is needed for the current non-commercial setup. The dashboard includes Open-Meteo attribution. Location permission can be denied; entering a city is the fallback.
 
 ## Voice
-Speech recognition depends on browser/OS support and microphone permission; current Chrome/Edge are recommended. Push-to-talk is user-initiated. Hands-free mode uses browser speech recognition to detect “Jarvis” and is not a guaranteed always-on wake-word engine; browser suspension may stop it. Speech output uses browser voices.
+
+Speech recognition depends on browser/OS support and microphone permission; current Chrome and Edge are recommended. Push-to-talk is user-initiated. Hands-free mode uses browser speech recognition to detect “Jarvis” and is not a guaranteed always-on wake-word engine; browser suspension may stop it. Speech output uses browser voices.
+
+## Timers and reminders
+
+Timers and reminders are stored locally in the browser session's storage and run in the page. Keep the J.A.R.V.I.S. tab open for due notifications; these are not server-side or guaranteed background reminders.
 
 ## Security and scope
-Never put the Gemini key in frontend code. Use HTTPS in cloud deployments and set a strong access token; production refuses to start without one. A shared bearer token is a lightweight gate, not full multi-user authentication. This starter does not run shell commands or control Windows/OBS. Add those later as explicit, authenticated integrations.
+
+- Never expose the Gemini API key in frontend code.
+- The API uses per-IP rate limiting and can restrict browser origins with `ALLOWED_ORIGINS`; neither is a replacement for authentication. The current public service does not require a shared access token.
+- The cloud app does not run shell commands or directly control Windows or OBS. Those capabilities require a separately designed local companion and explicit security controls.
+- The legacy `FH-Jarvis-1.0` repository and `fh-jarvis-cloud-ai` Render service are separate and are not modified by Mark II changes.
