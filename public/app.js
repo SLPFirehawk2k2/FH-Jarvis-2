@@ -28,12 +28,24 @@ function setNotice(text, error = false) {
   $('notice').classList.toggle('error', error);
 }
 async function api(path, options = {}) {
-  const headers = { ...(options.headers || {}) };
-  if (options.body) headers['Content-Type'] = 'application/json';
-  const response = await fetch(backendUrl + path, { ...options, headers });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw Error(data.error || 'Request failed (' + response.status + ')');
-  return data;
+  const { timeoutMs = 8000, ...fetchOptions } = options;
+  const headers = { ...(fetchOptions.headers || {}) };
+  if (fetchOptions.body) headers['Content-Type'] = 'application/json';
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(backendUrl + path, { ...fetchOptions, headers, signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw Error(data.error || 'Request failed (' + response.status + ')');
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw Error('Backend request timed out after ' + Math.round(timeoutMs / 1000) + ' seconds. Check the connection and try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 async function diagnostics() {
   try {
@@ -466,7 +478,7 @@ async function sendChat(content) {
   addMessage('user', text);
   messages.push({ role: 'user', content: text });
   try {
-    const d = await api('/api/chat', { method: 'POST', body: JSON.stringify({ messages: messages.slice(-8) }) });
+    const d = await api('/api/chat', { method: 'POST', timeoutMs: 22000, body: JSON.stringify({ messages: messages.slice(-8) }) });
     if (typeof d.reply !== 'string' || !d.reply.trim()) throw Error('The assistant returned an empty response.');
     messages.push({ role: 'assistant', content: d.reply });
     addMessage('assistant', d.reply);
