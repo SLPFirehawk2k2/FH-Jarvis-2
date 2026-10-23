@@ -85,12 +85,75 @@ function addMessage(role, content) {
   $('chat-log').append(el);
   $('chat-log').scrollTop = $('chat-log').scrollHeight;
 }
-function speak(text) {
-  if (!('speechSynthesis' in window) || !voiceReplies) return;
+const VOICE_KEY = 'jarvis.cinematicVoiceURI';
+const voicePreference = {
+  get: () => { try { return localStorage.getItem(VOICE_KEY) || ''; } catch { return ''; } },
+  set: value => { try { localStorage.setItem(VOICE_KEY, value); } catch {} }
+};
+let selectedVoiceURI = voicePreference.get();
+let availableVoices = [];
+function rankVoice(voice) {
+  const name = voice.name.toLowerCase();
+  let score = voice.lang.toLowerCase().startsWith('en-gb') ? 100 : voice.lang.toLowerCase().startsWith('en') ? 10 : 0;
+  if (/daniel|ryan|george|oliver|alfie|alan|male/.test(name)) score += 30;
+  if (/female|woman|zira|hazel|susan|sonia/.test(name)) score -= 25;
+  if (/natural|neural|premium|enhanced/.test(name)) score += 12;
+  return score;
+}
+function populateJarvisVoices() {
+  const select = $('jarvis-voice');
+  if (!select) return;
+  availableVoices = 'speechSynthesis' in window ? speechSynthesis.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)) : [];
+  availableVoices.sort((a, b) => rankVoice(b) - rankVoice(a) || a.name.localeCompare(b.name));
+  select.replaceChildren();
+  if (!availableVoices.length) {
+    const option = document.createElement('option');
+    option.textContent = 'No English voices available';
+    option.value = '';
+    select.append(option);
+    $('voice-selection-status').textContent = 'No voices loaded yet. Try refreshing or using a browser with speech synthesis.';
+    $('preview-voice').disabled = true;
+    $('save-voice').disabled = true;
+    return;
+  }
+  for (const voice of availableVoices) {
+    const option = document.createElement('option');
+    option.value = voice.voiceURI;
+    option.textContent = voice.name + ' (' + voice.lang + ')' + (voice.lang.toLowerCase().startsWith('en-gb') ? ' • BRITISH' : '');
+    select.append(option);
+  }
+  const savedExists = availableVoices.some(v => v.voiceURI === selectedVoiceURI);
+  if (!savedExists) selectedVoiceURI = availableVoices[0].voiceURI;
+  select.value = selectedVoiceURI;
+  $('preview-voice').disabled = false;
+  $('save-voice').disabled = false;
+  $('voice-selection-status').textContent = savedExists ? 'Saved voice selected. Audition or choose another.' : 'Suggested voice selected. Audition before saving.';
+}
+if ('speechSynthesis' in window) {
+  speechSynthesis.addEventListener('voiceschanged', populateJarvisVoices);
+  populateJarvisVoices();
+}
+$('preview-voice').addEventListener('click', () => {
+  const voice = availableVoices.find(v => v.voiceURI === $('jarvis-voice').value);
+  if (voice) speak('Good evening. J.A.R.V.I.S. Mark Two online. All systems are standing by, and I am at your service.', true, voice);
+});
+$('save-voice').addEventListener('click', () => {
+  const voice = availableVoices.find(v => v.voiceURI === $('jarvis-voice').value);
+  if (!voice) return;
+  selectedVoiceURI = voice.voiceURI;
+  voicePreference.set(selectedVoiceURI);
+  $('voice-selection-status').textContent = 'Saved: ' + voice.name + ' (' + voice.lang + ')';
+  logActivity('Voice selected: ' + voice.name);
+});
+function speak(text, force = false, previewVoice = null) {
+  if (!('speechSynthesis' in window) || (!voiceReplies && !force)) return;
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.02;
-  utterance.pitch = 0.95;
+  const voice = previewVoice || availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+  if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+  else utterance.lang = 'en-GB';
+  utterance.rate = 0.92;
+  utterance.pitch = 0.87;
   utterance.onstart = () => {
     speaking = true;
     if (handsFree && recognition) {
