@@ -4,3 +4,17 @@
 .weather-divider{height:1px;background:#2acdef20;margin:12px 0 14px}.weather-heading{padding-bottom:10px}.weather-output{font-size:11px;line-height:1.65;color:#c5e5ed;padding:12px 0;overflow-wrap:anywhere}.weather-label{display:block;font-size:10px;color:#7ca8b7;margin:8px 0 6px}.weather-location{display:block;width:100%;padding:10px;border:1px solid #50eaff33;font-size:11px}.weather-location:focus{border-color:var(--cyan)}#weather-refresh{margin-top:10px}
 
 .weather-attribution{font-size:9px;color:var(--muted);line-height:1.5}.weather-attribution a{color:var(--cyan)}
+
+
+/* Phase 5: visible, persistent local timers and reminders */
+.task-list{display:grid;gap:8px;margin:12px 0}
+.task-empty{margin:0;color:var(--muted);font-size:10px;line-height:1.6}
+.task-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #50eaff22;background:#06131b99}
+.task-details{display:grid;gap:5px;min-width:0}
+.task-details strong{font-size:10px;line-height:1.5;color:#d7f6ff;overflow-wrap:anywhere}
+.task-details small{font-size:10px;color:var(--cyan)}
+.task-cancel{flex-shrink:0;padding:7px 8px;border:1px solid #ff526655;background:transparent;color:#ff8490;font-size:9px;letter-spacing:.05em;cursor:pointer}
+.task-cancel:hover{background:#ff52661a;border-color:#ff5266}
+#task-notifications{margin-top:4px}
+#task-notifications:disabled{opacity:.65;cursor:default}
+.task-panel .fine-print{margin-top:10px}
