@@ -46,7 +46,7 @@ Speech recognition depends on browser/OS support and microphone permission; curr
 
 ## Timers and reminders
 
-Timers and reminders are stored locally in the browser session's storage and run in the page. Keep the J.A.R.V.I.S. tab open for due notifications; these are not server-side or guaranteed background reminders.
+Timers and reminders are stored in this browser's local storage and run in the page. Keep the J.A.R.V.I.S. tab open for due notifications; these are not server-side or guaranteed background reminders.
 
 ## Security and scope
 
