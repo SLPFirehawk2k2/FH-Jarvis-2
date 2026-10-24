@@ -25,3 +25,28 @@
 .task-panel .fine-print{margin-top:10px}
 
 .chat-actions a.primary-button{text-decoration:none;display:inline-block}
+
+/* Reactive cinematic arc reactor: GPU-friendly transforms, no external assets. */
+.core-visual{isolation:isolate;--core-accent:#50eaff}
+.core-halo{position:absolute;width:158px;height:158px;border-radius:50%;background:radial-gradient(circle,rgba(80,234,255,.23),rgba(80,234,255,.07) 37%,transparent 70%);filter:blur(9px);animation:core-breathe 3.8s ease-in-out infinite;pointer-events:none}
+.core-visual .core{position:relative;z-index:2;width:76px;height:76px;border:2px solid var(--core-accent);background:radial-gradient(circle,#65f4ff44,#062433 65%,#02111b);box-shadow:0 0 16px #50eaff90,0 0 40px #50eaff35,inset 0 0 19px #50eaff85;animation:core-breathe 3.8s ease-in-out infinite}
+.core-visual .core:before,.core-visual .core:after{content:"";position:absolute;inset:7px;border:1px dashed #b2f8ff9c;border-radius:50%;animation:core-rotate 7s linear infinite}
+.core-visual .core:after{inset:13px;border-style:solid;border-color:#6df2ff88 transparent;animation-direction:reverse;animation-duration:4s}
+.core-visual .core-inner{width:27px;height:27px;position:relative;z-index:2;background:#c8fcff;box-shadow:0 0 15px #b2faff,0 0 36px #50eaff,0 0 60px #50eaffaa;animation:core-heartbeat 2.7s ease-in-out infinite}
+.core-visual .orbit{z-index:1;border-width:2px;will-change:transform}
+.core-visual .orbit-one{border-style:dashed;border-color:#50eaffc9 transparent #50eaff8a;animation:core-rotate 11s linear infinite}
+.core-visual .orbit-two{border-color:transparent #50eaff8a #50eaffaa transparent;animation:core-rotate 8s linear infinite reverse}
+.core-visual .orbit-three{width:118px;height:118px;border:1px dotted #c5faff99;animation:core-rotate 16s linear infinite}
+.core-state-label{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:.22em;color:var(--core-accent);text-shadow:0 0 10px var(--core-accent)}
+.core-visual[data-state="listening"]{--core-accent:#74ffd4}
+.core-visual[data-state="thinking"]{--core-accent:#f8c86b}
+.core-visual[data-state="speaking"]{--core-accent:#b49aff}
+.core-visual[data-state="offline"]{--core-accent:#ff647d}
+.core-visual[data-state="listening"] .core,.core-visual[data-state="speaking"] .core{animation-duration:1s}
+.core-visual[data-state="thinking"] .orbit-one,.core-visual[data-state="thinking"] .orbit-two{animation-duration:2.5s}
+.core-visual[data-state="speaking"] .core-inner{animation-duration:.55s}
+.core-visual[data-state="offline"] .core,.core-visual[data-state="offline"] .core-inner{opacity:.45;animation:none}
+@keyframes core-rotate{to{transform:rotate(360deg)}}
+@keyframes core-breathe{50%{transform:scale(1.075);filter:brightness(1.3)}}
+@keyframes core-heartbeat{50%{transform:scale(1.22);opacity:.85}}
+@media(prefers-reduced-motion:reduce){.core-visual .orbit,.core-visual .core,.core-visual .core:before,.core-visual .core:after,.core-visual .core-inner,.core-halo{animation:none!important;will-change:auto}}
