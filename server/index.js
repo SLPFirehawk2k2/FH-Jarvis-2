@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { EdgeTTS } from 'node-edge-tts';
 import { providerStatus, routeChat } from './ai-router.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,7 +64,34 @@ const chatLimiter = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: 'd
   message: { error: 'Too many requests. Please wait a minute and try again.' } });
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', (_req, res) => res.json({ ok: true, ...providerStatus(), voice: 'browser-dependent' }));
+app.get('/api/status', (_req, res) => res.json({ ok: true, ...providerStatus(), voice: 'experimental-edge-neural-with-browser-fallback' }));
+
+// Experimental, unofficial Edge Read Aloud relay; no credentials. Do not send sensitive text.
+const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 6, standardHeaders: 'draft-7', legacyHeaders: false });
+const allowedNeuralVoices = new Set(['en-GB-RyanNeural', 'en-GB-ThomasNeural']);
+app.post('/api/voice', voiceLimiter, async (req, res) => {
+  const { text, voice = 'en-GB-RyanNeural' } = req.body || {};
+  if (typeof text !== 'string' || !text.trim() || text.length > 1200 || !allowedNeuralVoices.has(voice)) {
+    return res.status(400).json({ error: 'Provide 1–1200 characters and a supported British voice.' });
+  }
+  try {
+    const tts = new EdgeTTS({ voice, lang: 'en-GB', outputFormat: 'audio-24khz-48kbitrate-mono-mp3', rate: '-8%', timeout: 12000 });
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of tts.streamAudio(text.trim())) {
+      if (!Buffer.isBuffer(chunk)) continue;
+      size += chunk.length;
+      if (size > 2_000_000) throw new Error('Voice response exceeds limit');
+      chunks.push(chunk);
+    }
+    if (!size) throw new Error('Voice service returned no audio');
+    res.set('Cache-Control', 'no-store');
+    res.type('audio/mpeg').send(Buffer.concat(chunks));
+  } catch (error) {
+    console.warn('Experimental neural voice unavailable:', error?.message?.slice(0, 120));
+    res.status(503).json({ error: 'Cloud neural voice unavailable; use browser voice fallback.' });
+  }
+});
 
 app.post('/api/chat', chatLimiter, async (req, res) => {
   const messages = req.body?.messages;
