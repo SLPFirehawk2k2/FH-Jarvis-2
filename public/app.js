@@ -156,7 +156,47 @@ $('save-voice').addEventListener('click', () => {
   $('voice-selection-status').textContent = 'Saved: ' + voice.name + ' (' + voice.lang + ')';
   logActivity('Voice selected: ' + voice.name);
 });
-function speak(text, force = false, previewVoice = null) {
+let neuralAudio = null;
+let voiceRequestId = 0;
+function finishNeuralSpeech(requestId) {
+  if (requestId !== voiceRequestId) return;
+  speaking = false;
+  if (neuralAudio) { neuralAudio.pause(); neuralAudio.src = ''; neuralAudio = null; }
+  if (handsFree && restartRequested) { restartRequested = false; startRecognition(); }
+}
+async function speak(text, force = false, previewVoice = null) {
+  if (!voiceReplies && !force) return;
+  const requestId = ++voiceRequestId;
+  if (neuralAudio) { neuralAudio.pause(); neuralAudio.src = ''; neuralAudio = null; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  // Voice Lab auditions of a browser voice remain browser-based.
+  if (previewVoice) { speakBrowser(text, force, previewVoice); return; }
+  try {
+    const response = await fetch('/api/voice', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: String(text).slice(0, 1200), voice: 'en-GB-RyanNeural' })
+    });
+    if (!response.ok) throw new Error('Neural voice unavailable');
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('Empty audio');
+    if (requestId !== voiceRequestId) return;
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    neuralAudio = audio;
+    audio.onended = audio.onerror = () => { URL.revokeObjectURL(url); finishNeuralSpeech(requestId); };
+    speaking = true;
+    if (handsFree && recognition) {
+      restartRequested = true;
+      try { recognition.stop(); } catch {}
+    }
+    await audio.play();
+  } catch {
+    if (requestId !== voiceRequestId) return;
+    finishNeuralSpeech(requestId);
+    speakBrowser(text, force);
+  }
+}
+function speakBrowser(text, force = false, previewVoice = null) {
   if (!('speechSynthesis' in window) || (!voiceReplies && !force)) return;
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
