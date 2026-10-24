@@ -18,6 +18,17 @@ let messages = [];
 
 $('backend-url').value = backendUrl;
 
+function updateCoreState() {
+  const core = $('jarvis-core');
+  if (!core) return;
+  const state = speaking ? 'speaking' : busy ? 'thinking' : (pushToTalkActive || handsFree) && $('mic-status')?.textContent === 'LISTENING' ? 'listening' : $('endpoint-status')?.textContent === 'OFFLINE' ? 'offline' : 'idle';
+  if (core.dataset.state === state) return;
+  core.dataset.state = state;
+  const labels = { speaking: 'SPEAKING', thinking: 'PROCESSING', listening: 'LISTENING', offline: 'OFFLINE', idle: 'STANDBY' };
+  core.setAttribute('aria-label', 'J.A.R.V.I.S. core ' + labels[state].toLowerCase());
+  $('core-state-label').textContent = labels[state];
+}
+window.setInterval(updateCoreState, 180);
 function logActivity(text) {
   const p = document.createElement('p');
   p.textContent = new Date().toLocaleTimeString() + '  ' + text;
