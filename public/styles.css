@@ -50,3 +50,28 @@
 @keyframes core-breathe{50%{transform:scale(1.075);filter:brightness(1.3)}}
 @keyframes core-heartbeat{50%{transform:scale(1.22);opacity:.85}}
 @media(prefers-reduced-motion:reduce){.core-visual .orbit,.core-visual .core,.core-visual .core:before,.core-visual .core:after,.core-visual .core-inner,.core-halo{animation:none!important;will-change:auto}}
+
+/* NIGHTMARE CORE: CSS-only tactical reactor visualization. */
+.core-visual{height:225px;background:radial-gradient(ellipse at center,#0d3b4d 0%,#061923 37%,transparent 74%);--nightmare-glow:#50eaff}
+.core-visual:before{content:"";position:absolute;width:208px;height:208px;border-radius:50%;background:repeating-conic-gradient(from 0deg,#50eaff15 0deg 2deg,transparent 2deg 10deg);mask:radial-gradient(circle,transparent 0 81px,#000 82px 103px,transparent 104px);animation:core-rotate 34s linear infinite}
+.core-visual:after{content:"";position:absolute;width:215px;height:215px;border:1px solid #50eaff20;border-radius:50%;box-shadow:0 0 26px #50eaff15,inset 0 0 26px #50eaff15;pointer-events:none}
+.nightmare-field{position:absolute;width:220px;height:220px;background:repeating-linear-gradient(0deg,transparent 0 13px,#50eaff08 13px 14px),repeating-linear-gradient(90deg,transparent 0 13px,#50eaff08 13px 14px);mask:radial-gradient(circle,#000 0 105px,transparent 109px);opacity:.65}
+.nightmare-reticle{position:absolute;width:202px;height:202px;border:1px solid #50eaff35;border-radius:50%;background:linear-gradient(90deg,transparent calc(50% - .5px),#50eaff30 50%,transparent calc(50% + .5px)),linear-gradient(transparent calc(50% - .5px),#50eaff30 50%,transparent calc(50% + .5px));animation:core-rotate 42s linear infinite reverse}
+.nightmare-ticks{position:absolute;width:202px;height:202px;border-radius:50%;background:repeating-conic-gradient(#75efff 0deg 1.1deg,transparent 1.1deg 8deg);mask:radial-gradient(circle,transparent 0 94px,#000 95px 101px,transparent 102px);animation:core-rotate 22s linear infinite}
+.nightmare-segments{position:absolute;border-radius:50%;background:repeating-conic-gradient(from 10deg,#50eaffd6 0deg 14deg,transparent 14deg 22deg,#50eaff55 22deg 24deg,transparent 24deg 36deg);filter:drop-shadow(0 0 5px #50eaff7c)}
+.nightmare-segments-outer{width:174px;height:174px;mask:radial-gradient(circle,transparent 0 78px,#000 79px 86px,transparent 87px);animation:core-rotate 9s linear infinite}
+.nightmare-segments-inner{width:118px;height:118px;mask:radial-gradient(circle,transparent 0 49px,#000 50px 59px,transparent 60px);animation:core-rotate 5s linear infinite reverse}
+.core-visual .orbit-one{width:154px;height:154px;border-width:1px;border-color:#c8fcff transparent #50eaff transparent;animation-duration:6s}
+.core-visual .orbit-two{width:186px;height:115px;border-width:1px;border-color:#50eaffb8 transparent;animation-duration:10s}
+.core-visual .orbit-three{width:130px;height:130px;border-color:#a5faff70;animation-duration:12s}
+.core-visual .core{width:88px;height:88px;border:2px solid #aaf8ff;background:radial-gradient(circle,#b8faff66 0%,#16748b70 39%,#011522 75%);box-shadow:0 0 14px #d7ffff,0 0 35px #50eaff99,0 0 75px #50eaff55,inset 0 0 25px #b9ffff8c}
+.core-visual .core-inner{width:31px;height:31px;background:#e7ffff;box-shadow:0 0 12px #fff,0 0 28px #b9ffff,0 0 58px #50eaff,0 0 95px #50eaffaa}
+.nightmare-scan{position:absolute;z-index:3;width:185px;height:185px;border-radius:50%;background:conic-gradient(from 0deg,transparent 0deg 314deg,#50eaff0a 335deg,#50eaff4a 356deg,transparent 360deg);mask:radial-gradient(circle,transparent 0 45px,#000 46px 92px,transparent 93px);animation:core-rotate 4.5s linear infinite;pointer-events:none}
+.core-visual[data-state="listening"] .nightmare-segments{animation-duration:3s;filter:drop-shadow(0 0 9px #74ffd4)}
+.core-visual[data-state="thinking"] .nightmare-segments-outer{animation-duration:1.6s}
+.core-visual[data-state="thinking"] .nightmare-segments-inner{animation-duration:1.1s}
+.core-visual[data-state="speaking"] .nightmare-scan{animation-duration:1.6s}
+.core-visual[data-state="offline"] .nightmare-segments,.core-visual[data-state="offline"] .nightmare-scan{animation-play-state:paused;opacity:.2}
+.core-visual .core-state-label{bottom:3px;font-weight:700;letter-spacing:.3em}
+@media(max-width:600px){.core-visual{height:215px}}
+@media(prefers-reduced-motion:reduce){.core-visual:before,.nightmare-reticle,.nightmare-ticks,.nightmare-segments,.nightmare-scan{animation:none!important}}
