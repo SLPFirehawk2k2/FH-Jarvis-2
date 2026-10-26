@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "postinstall": "node scripts/setup-piper.js"
   },
   "dependencies": {
     "@google/generative-ai": "0.24.1",
