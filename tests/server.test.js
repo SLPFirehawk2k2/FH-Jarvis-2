@@ -43,6 +43,7 @@ test('health endpoint responds with ok true', async t => {
   const csp = response.headers.get('content-security-policy');
   assert.match(csp, /script-src 'self'/);
   assert.match(csp, /object-src 'none'/);
+  assert.match(csp, /media-src 'self' blob:/);
   assert.match(csp, /connect-src[^;]*https:\/\/api\.open-meteo\.com/);
   assert.deepEqual(await response.json(), { ok: true });
 });
