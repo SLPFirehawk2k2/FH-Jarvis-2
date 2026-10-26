@@ -157,33 +157,63 @@ $('save-voice').addEventListener('click', () => {
   logActivity('Voice selected: ' + voice.name);
 });
 let neuralAudio = null;
+let neuralAudioURL = null;
+let voiceController = null;
 let voiceRequestId = 0;
+function releaseNeuralAudio() {
+  if (neuralAudio) {
+    neuralAudio.onended = neuralAudio.onerror = null;
+    neuralAudio.pause();
+    neuralAudio.src = '';
+    neuralAudio = null;
+  }
+  if (neuralAudioURL) { URL.revokeObjectURL(neuralAudioURL); neuralAudioURL = null; }
+}
+function stopSpeech() {
+  ++voiceRequestId;
+  voiceController?.abort();
+  voiceController = null;
+  releaseNeuralAudio();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  speaking = false;
+}
 function finishNeuralSpeech(requestId) {
   if (requestId !== voiceRequestId) return;
   speaking = false;
-  if (neuralAudio) { neuralAudio.pause(); neuralAudio.src = ''; neuralAudio = null; }
+  releaseNeuralAudio();
   if (handsFree && restartRequested) { restartRequested = false; startRecognition(); }
 }
 async function speak(text, force = false, previewVoice = null) {
   if (!voiceReplies && !force) return;
-  const requestId = ++voiceRequestId;
-  if (neuralAudio) { neuralAudio.pause(); neuralAudio.src = ''; neuralAudio = null; }
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  stopSpeech();
+  const requestId = voiceRequestId;
   // Voice Lab auditions of a browser voice remain browser-based.
-  if (previewVoice) { speakBrowser(text, force, previewVoice); return; }
+  if (previewVoice) { speakBrowser(text, force, previewVoice, requestId); return; }
+  const controller = new AbortController();
+  voiceController = controller;
+  const timeout = setTimeout(() => controller.abort(), 26000);
+  let fellBack = false;
+  const fallback = () => {
+    if (requestId !== voiceRequestId || fellBack) return;
+    fellBack = true;
+    releaseNeuralAudio();
+    speaking = false;
+    speakBrowser(text, force, null, requestId);
+  };
   try {
     const response = await fetch('/api/voice', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
       body: JSON.stringify({ text: String(text).slice(0, 1200), voice: 'en-GB-RyanNeural' })
     });
-    if (!response.ok) throw new Error('Neural voice unavailable');
+    if (!response.ok || !response.headers.get('content-type')?.startsWith('audio/')) throw new Error('Neural voice unavailable');
     const blob = await response.blob();
     if (!blob.size) throw new Error('Empty audio');
     if (requestId !== voiceRequestId) return;
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+    neuralAudioURL = URL.createObjectURL(blob);
+    const audio = new Audio(neuralAudioURL);
     neuralAudio = audio;
-    audio.onended = audio.onerror = () => { URL.revokeObjectURL(url); finishNeuralSpeech(requestId); };
+    audio.onended = () => finishNeuralSpeech(requestId);
+    audio.onerror = fallback;
     speaking = true;
     if (handsFree && recognition) {
       restartRequested = true;
@@ -191,13 +221,18 @@ async function speak(text, force = false, previewVoice = null) {
     }
     await audio.play();
   } catch {
-    if (requestId !== voiceRequestId) return;
-    finishNeuralSpeech(requestId);
-    speakBrowser(text, force);
+    fallback();
+  } finally {
+    clearTimeout(timeout);
+    if (voiceController === controller) voiceController = null;
   }
 }
-function speakBrowser(text, force = false, previewVoice = null) {
-  if (!('speechSynthesis' in window) || (!voiceReplies && !force)) return;
+function speakBrowser(text, force = false, previewVoice = null, requestId = voiceRequestId) {
+  if (requestId !== voiceRequestId) return;
+  if (!('speechSynthesis' in window) || (!voiceReplies && !force)) {
+    finishNeuralSpeech(requestId);
+    return;
+  }
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   const voice = previewVoice || availableVoices.find(v => v.voiceURI === selectedVoiceURI);
@@ -206,19 +241,14 @@ function speakBrowser(text, force = false, previewVoice = null) {
   utterance.rate = 0.92;
   utterance.pitch = 0.87;
   utterance.onstart = () => {
+    if (requestId !== voiceRequestId) return;
     speaking = true;
     if (handsFree && recognition) {
       restartRequested = true;
       try { recognition.stop(); } catch {}
     }
   };
-  utterance.onend = utterance.onerror = () => {
-    speaking = false;
-    if (handsFree && restartRequested) {
-      restartRequested = false;
-      startRecognition();
-    }
-  };
+  utterance.onend = utterance.onerror = () => finishNeuralSpeech(requestId);
   speechSynthesis.speak(utterance);
 }
 const LOCAL_TASKS_KEY = 'jarvis.localTasks';
@@ -688,7 +718,10 @@ $('speak-toggle').addEventListener('click', () => {
   $('speak-toggle').classList.toggle('active', voiceReplies);
   $('speak-toggle').textContent = voiceReplies ? '♫ VOICE REPLIES ON' : '♫ VOICE REPLIES OFF';
   $('speak-toggle').setAttribute('aria-pressed', String(voiceReplies));
-  if (!voiceReplies && 'speechSynthesis' in window) speechSynthesis.cancel();
+  if (!voiceReplies) {
+    stopSpeech();
+    if (handsFree && restartRequested) { restartRequested = false; startRecognition(); }
+  }
 });
 
 function updateVoiceUi() {

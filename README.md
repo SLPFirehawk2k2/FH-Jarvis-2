@@ -43,7 +43,7 @@ The dashboard can use browser location permission or a manually entered city. We
 
 ## Voice
 
-Speech recognition depends on browser/OS support and microphone permission; current Chrome and Edge are recommended. Push-to-talk is user-initiated. Hands-free mode uses browser speech recognition to detect “Jarvis” and is not a guaranteed always-on wake-word engine; browser suspension may stop it. Speech output uses browser voices.
+Speech recognition depends on browser/OS support and microphone permission; current Chrome and Edge are recommended. Push-to-talk is user-initiated. Hands-free mode uses browser speech recognition to detect “Jarvis” and is not a guaranteed always-on wake-word engine; browser suspension may stop it. Speech output first requests the experimental, unofficial Edge neural speech relay (British Ryan) on the cloud server; it requires no additional account or key. The relay uses node-edge-tts 1.2.12 with its updated provider handshake. If synthesis or audio playback fails, the dashboard falls back to the selected browser voice. Voice Lab auditions preview browser voices only. Turning voice replies off stops playback and cancels pending speech. The relay remains dependent on upstream service availability.
 
 ## Timers and reminders
 

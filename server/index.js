@@ -31,6 +31,7 @@ app.use(helmet({
       styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'", 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com', ...connectSrcOrigins],
+      mediaSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       frameAncestors: ["'none'"],
