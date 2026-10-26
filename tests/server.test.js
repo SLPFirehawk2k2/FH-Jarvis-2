@@ -216,3 +216,23 @@ test('status selects Gemini when Groq is unconfigured', async t => {
   assert.equal(status.provider, 'gemini');
   assert.equal(status.backupConfigured, false);
 });
+
+test('installed cloud voice endpoint returns a complete WAV with provider metadata', async t => {
+  const { piperConfigured } = await import('../server/piper.js');
+  if (!piperConfigured) { t.skip('Run SETUP_PIPER=1 npm install for speech integration tests'); return; }
+  const port = 8517 + Math.floor(Math.random() * 200);
+  await startServer(t, port);
+  const status = await (await fetch('http://127.0.0.1:' + port + '/api/status')).json();
+  assert.equal(status.voice, 'cloud-piper-british-with-browser-fallback');
+  const response = await fetch('http://127.0.0.1:' + port + '/api/voice', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: 'JARVIS online.' })
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /audio\/wav/);
+  assert.equal(response.headers.get('x-voice-engine'), 'piper-british');
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const audio = Buffer.from(await response.arrayBuffer());
+  assert.equal(audio.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(audio.readUInt32LE(4) + 8, audio.length);
+});

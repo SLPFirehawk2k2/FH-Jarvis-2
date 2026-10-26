@@ -144,6 +144,9 @@ if ('speechSynthesis' in window) {
   speechSynthesis.addEventListener('voiceschanged', populateJarvisVoices);
   populateJarvisVoices();
 }
+$('preview-cloud-voice').addEventListener('click', () => {
+  speak('Good evening. J.A.R.V.I.S. Mark Two online. All systems are standing by, and I am at your service.', true);
+});
 $('preview-voice').addEventListener('click', () => {
   const voice = availableVoices.find(v => v.voiceURI === $('jarvis-voice').value);
   if (voice) speak('Good evening. J.A.R.V.I.S. Mark Two online. All systems are standing by, and I am at your service.', true, voice);
@@ -203,7 +206,7 @@ async function speak(text, force = false, previewVoice = null) {
   try {
     const response = await fetch('/api/voice', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-      body: JSON.stringify({ text: String(text).slice(0, 1200), voice: 'en-GB-RyanNeural' })
+      body: JSON.stringify({ text: String(text).slice(0, 1200) })
     });
     if (!response.ok || !response.headers.get('content-type')?.startsWith('audio/')) throw new Error('Neural voice unavailable');
     const blob = await response.blob();

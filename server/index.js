@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { EdgeTTS } from 'node-edge-tts';
+import { piperConfigured, synthesizePiper } from './piper.js';
 import { providerStatus, routeChat } from './ai-router.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,17 +66,22 @@ const chatLimiter = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: 'd
   message: { error: 'Too many requests. Please wait a minute and try again.' } });
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', (_req, res) => res.json({ ok: true, ...providerStatus(), voice: 'experimental-edge-neural-with-browser-fallback' }));
+app.get('/api/status', (_req, res) => res.json({ ok: true, ...providerStatus(), voice: piperConfigured ? 'cloud-piper-british-with-browser-fallback' : 'experimental-edge-neural-with-browser-fallback' }));
 
-// Experimental, unofficial Edge Read Aloud relay; no credentials. Do not send sensitive text.
+// Prefer cloud-hosted Piper. Keep the experimental Edge relay for installations without Piper.
 const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 6, standardHeaders: 'draft-7', legacyHeaders: false });
-const allowedNeuralVoices = new Set(['en-GB-RyanNeural', 'en-GB-ThomasNeural']);
+const allowedNeuralVoices = new Set(['en-GB-RyanNeural', 'en-GB-ThomasNeural', 'en_GB-northern_english_male-medium']);
 app.post('/api/voice', voiceLimiter, async (req, res) => {
-  const { text, voice = 'en-GB-RyanNeural' } = req.body || {};
+  const { text, voice = piperConfigured ? 'en_GB-northern_english_male-medium' : 'en-GB-RyanNeural' } = req.body || {};
   if (typeof text !== 'string' || !text.trim() || text.length > 1200 || !allowedNeuralVoices.has(voice)) {
     return res.status(400).json({ error: 'Provide 1–1200 characters and a supported British voice.' });
   }
   try {
+    if (piperConfigured) {
+      const audio = await synthesizePiper(text.trim());
+      return res.set({ 'Cache-Control': 'no-store', 'X-Voice-Engine': 'piper-british' }).type('audio/wav').send(audio);
+    }
+    if (voice === 'en_GB-northern_english_male-medium') throw new Error('Piper voice is not installed');
     const tts = new EdgeTTS({ voice, lang: 'en-GB', outputFormat: 'audio-24khz-48kbitrate-mono-mp3', rate: '-8%', timeout: 12000 });
     const chunks = [];
     let size = 0;
@@ -89,7 +95,7 @@ app.post('/api/voice', voiceLimiter, async (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.type('audio/mpeg').send(Buffer.concat(chunks));
   } catch (error) {
-    console.warn('Experimental neural voice unavailable:', error?.message?.slice(0, 120));
+    console.warn('Cloud neural voice unavailable:', error?.message?.slice(0, 120));
     res.status(503).json({ error: 'Cloud neural voice unavailable; use browser voice fallback.' });
   }
 });
@@ -136,6 +142,7 @@ app.use(express.static(publicDir, { extensions: ['html'] }));
 app.get('*path', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
 app.listen(port, () => {
   console.log(`J.A.R.V.I.S. Mark II listening on port ${port}`);
+  console.info('Cloud speech:', piperConfigured ? 'Piper British neural' : 'experimental Edge relay');
   console.info('Cloud AI routing:', providerStatus().provider, 'backup configured:', providerStatus().backupConfigured);
   console.info('J.A.R.V.I.S. access-token prompt disabled; AI requests are protected by per-IP rate limiting.');
 });
